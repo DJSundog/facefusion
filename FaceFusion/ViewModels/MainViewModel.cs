@@ -14,12 +14,15 @@ using Microsoft.Kinect.Toolkit.Fusion;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Collections.Generic;
+using Blake.NUI.WPF.Utility;
 
 namespace FaceFusion.ViewModels
 {
     public class MainViewModel : ViewModelBase, IDisposable
     {
         #region Fields
+
+        #region Standard Fields
 
         DateTime _lastFPSUpdate = DateTime.Now;
         double _rotationRateInDegrees = 0;
@@ -77,8 +80,16 @@ namespace FaceFusion.ViewModels
         bool _isFusionInitialized;
 
         float _alignmentEnergy;
-                
+
+        int _activeSkeletonLostCount = 0;
+        int _activeSkeletonLostLimit = 60;
+        
+        #endregion
+
         #region Fusion Fields
+
+        Vector3 _volumeCenter = new Vector3();
+        Vector3 _currentVolumeCenter = new Vector3();
 
         /// <summary>
         /// The resolution of the depth image to be processed.
@@ -89,7 +100,7 @@ namespace FaceFusion.ViewModels
         /// The reconstruction volume voxel density in voxels per meter (vpm)
         /// 1000mm / 256vpm = ~3.9mm/voxel
         /// </summary>
-        private const int VoxelsPerMeter = 512;
+        private const int VoxelsPerMeter = 384;
 
         /// <summary>
         /// The reconstruction volume voxel resolution in the X axis
@@ -229,7 +240,7 @@ namespace FaceFusion.ViewModels
         /// <summary>
         /// The integration weight.
         /// </summary>
-        public const int IntegrationWeight = 30;
+        public const int IntegrationWeight = 45;
 
         #endregion
 
@@ -288,7 +299,7 @@ namespace FaceFusion.ViewModels
         /// </summary>
         public const string IsCameraTrackingPropertyName = "IsCameraTracking";
 
-        private bool _isCameraTracking = false;
+        private bool _isCameraTracking = true;
 
         /// <summary>
         /// Gets the IsCameraTracking property.
@@ -1019,7 +1030,7 @@ namespace FaceFusion.ViewModels
                     newSensor.SkeletonStream.EnableTrackingInNearRange = false;
                 }
 
-                newSensor.SkeletonStream.TrackingMode = SkeletonTrackingMode.Seated;
+                newSensor.SkeletonStream.TrackingMode = SkeletonTrackingMode.Default;
                 
                 var smoothParams = new TransformSmoothParameters()
                     {
@@ -1199,14 +1210,40 @@ namespace FaceFusion.ViewModels
                                               .OrderBy(s => s.Position.Z * Math.Abs(s.Position.X))
                                               .FirstOrDefault();
 
-            _activeSkeleton = closestSkeleton;
+            bool newSkeleton = false;
+            if (closestSkeleton != null &&
+                (_activeSkeleton == null ||
+                 _activeSkeleton.TrackingId != closestSkeleton.TrackingId))
+            {
+                newSkeleton = true;
+            }
+
             if (closestSkeleton == null)
             {
+                _activeSkeletonLostCount++;
+
+                if (_activeSkeletonLostCount > _activeSkeletonLostLimit)
+                {
+                    _activeSkeleton = null;
+                }
                 _activeSkeletonId = InactiveSkeletonId;
             }
             else
             {
+                _activeSkeletonLostCount = 0;
+                _activeSkeleton = closestSkeleton;
                 _activeSkeletonId = skeletonList.IndexOf(closestSkeleton) + 1;
+
+
+                var headJoint = closestSkeleton.Joints[JointType.Head];
+                _volumeCenter.X = headJoint.Position.X;
+                _volumeCenter.Y = headJoint.Position.Y;
+                _volumeCenter.Z = headJoint.Position.Z;
+            }
+
+            if (newSkeleton)
+            {
+                ResetReconstruction();
             }
         }
 
@@ -1251,7 +1288,7 @@ namespace FaceFusion.ViewModels
                     hy = headPoint.Y;
                     hzMax = headPoint.Depth + headDepthThreshold;
                     hzMin = headPoint.Depth - headDepthThreshold;
-                    double factor = 1;
+                    double factor = 2;
                     headNeckDist2 = (Math.Pow(neckPoint.X - headPoint.X, 2) +
                                      Math.Pow(neckPoint.Y - headPoint.Y, 2)) * factor * factor;
                 }
@@ -1284,12 +1321,12 @@ namespace FaceFusion.ViewModels
                         byte modValue = 0;
                         byte modRMult = 0;
 
-                        if (processModImage &&
-                            playerIndex == _activeSkeletonId)
+                        //if (processModImage &&
+                        //    playerIndex == _activeSkeletonId)
                         {
-                            //var dx = x - hx;
-                            //var dy = y - hy;
-                            //var dist2 = dx * dx + dy * dy;
+                            var dx = x - hx;
+                            var dy = y - hy;
+                            var dist2 = dx * dx + dy * dy;
 
                             modValue = value;
 
@@ -1470,12 +1507,12 @@ namespace FaceFusion.ViewModels
             this.frameDataLength = KinectSensor.DepthStream.FramePixelDataLength;
 
             // Allocate space to put the color pixels we'll create
-            this.colorPixels = new int[this.frameDataLength];
+            this.colorPixels = new int[(int)(ImageSize.Width * 2 * ImageSize.Height * 2)];
 
             // This is the bitmap we'll display on-screen
             this.colorFusionBitmap = new WriteableBitmap(
-                (int)ImageSize.Width,
-                (int)ImageSize.Height,
+                (int)ImageSize.Width * 2,
+                (int)ImageSize.Height * 2,
                 96.0,
                 96.0,
                 PixelFormats.Bgr32,
@@ -1523,10 +1560,10 @@ namespace FaceFusion.ViewModels
             _residualData = new float[(int)(ImageSize.Width * ImageSize.Height)];
 
             // Point cloud frames generated from the depth float input
-            this.pointCloudBuffer = new FusionPointCloudImageFrame((int)ImageSize.Width, (int)ImageSize.Height);
+            this.pointCloudBuffer = new FusionPointCloudImageFrame((int)ImageSize.Width*2, (int)ImageSize.Height*2);
 
             // Create images to raycast the Reconstruction Volume
-            this.shadedSurfaceColorFrame = new FusionColorImageFrame((int)ImageSize.Width, (int)ImageSize.Height);
+            this.shadedSurfaceColorFrame = new FusionColorImageFrame((int)ImageSize.Width*2, (int)ImageSize.Height*2);
 
             // Reset the reconstruction
             this.ResetReconstruction();
@@ -1559,7 +1596,11 @@ namespace FaceFusion.ViewModels
                     // Translate the volume in the Z axis by the minDepthThreshold distance
                     float minDist = (this.minDepthClip < this.maxDepthClip) ? this.minDepthClip : this.maxDepthClip;
                     //worldToVolumeTransform.M43 -= minDist * VoxelsPerMeter;
-                    worldToVolumeTransform.M43 -= (float)(ZOffset * VoxelsPerMeter);
+                    worldToVolumeTransform.M41 += (float)((_volumeCenter.X * VoxelsPerMeter) - (0.0 * VoxelResolutionX));
+                    worldToVolumeTransform.M42 += (float)((_volumeCenter.Y * VoxelsPerMeter) - (0.0 * VoxelResolutionY));
+                    worldToVolumeTransform.M43 -= (float)((_volumeCenter.Z * VoxelsPerMeter) - (0.5 * VoxelResolutionZ));
+                    _currentVolumeCenter = _volumeCenter;
+                    Trace.WriteLine("Reset reconstruction at center: " + _volumeCenter.X + ", " + _volumeCenter.Y + " " + _volumeCenter.Z);
 
                     this.volume.ResetReconstruction(this.worldToCameraTransform, worldToVolumeTransform);
                 }
@@ -1694,10 +1735,10 @@ namespace FaceFusion.ViewModels
                                                                                                     c.M31, c.M32, c.M33, c.M34,
                                                                                                     c.M41, c.M42, c.M43, c.M44);
 
-                double zTranslate = 0.5 * VoxelResolutionZ / VoxelsPerMeter + ZOffset;
-                m.Translate(new System.Windows.Media.Media3D.Vector3D(0, 0, -zTranslate));
+                double zTranslate = -1.0 * VoxelResolutionZ / VoxelsPerMeter;
+                m.Translate(new System.Windows.Media.Media3D.Vector3D(-_currentVolumeCenter.X, -_currentVolumeCenter.Y, -(_currentVolumeCenter.Z + zTranslate)));
                 m.Rotate(new System.Windows.Media.Media3D.Quaternion(new System.Windows.Media.Media3D.Vector3D(0, 1, 0), _rotationRateInDegrees));
-                m.Translate(new System.Windows.Media.Media3D.Vector3D(0, 0, zTranslate));
+                m.Translate(new System.Windows.Media.Media3D.Vector3D(_currentVolumeCenter.X, _currentVolumeCenter.Y, _currentVolumeCenter.Z + zTranslate));
 
                 c.M11 = (float)m.M11;
                 c.M12 = (float)m.M12;
@@ -1719,7 +1760,7 @@ namespace FaceFusion.ViewModels
 
                 var viewCam = cameraTransform;
 
-                if (!IsTracking || IsCameraTracking)
+                if (IsCameraTracking)
                 {
                     viewCam = worldToCameraTransform;
                 }
@@ -1727,10 +1768,20 @@ namespace FaceFusion.ViewModels
                 // Calculate the point cloud
                 this.volume.CalculatePointCloud(this.pointCloudBuffer, viewCam);
 
+                Matrix4 worldToBGRTransform = Matrix4.Identity;
+                worldToBGRTransform.M11 = VoxelsPerMeter / VoxelResolutionX;
+                worldToBGRTransform.M22 = VoxelsPerMeter / VoxelResolutionY;
+                worldToBGRTransform.M33 = VoxelsPerMeter / VoxelResolutionZ;
+                worldToBGRTransform.M41 = -_currentVolumeCenter.X;
+                worldToBGRTransform.M42 = -_currentVolumeCenter.Y;
+                worldToBGRTransform.M43 = -_currentVolumeCenter.Z;
+                worldToBGRTransform.M44 = 1.0f;
+
                 // Shade point cloud and render
                 FusionDepthProcessor.ShadePointCloud(
                     this.pointCloudBuffer,
                     viewCam,
+                    //worldToBGRTransform,
                     this.shadedSurfaceColorFrame,
                     null);
 
@@ -1763,9 +1814,9 @@ namespace FaceFusion.ViewModels
 
                 if (data <= 1.0)
                 {
-                    _residualImageData[i * 4 + 0] = (byte)(255 * (1 - data));
-                    _residualImageData[i * 4 + 1] = (byte)(255 * (1 - Math.Abs(data)));
-                    _residualImageData[i * 4 + 2] = (byte)(255 * (1 + data));
+                    _residualImageData[i * 4 + 0] = (byte)(255 * MathUtility.Clamp(1 - data, 0, 1));
+                    _residualImageData[i * 4 + 1] = (byte)(255 * MathUtility.Clamp(1 - Math.Abs(data), 0, 1));
+                    _residualImageData[i * 4 + 2] = (byte)(255 * MathUtility.Clamp(1 + data, 0, 1));
                 }
                 else
                 {
