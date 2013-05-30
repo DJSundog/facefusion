@@ -1,0 +1,49 @@
+﻿<UserControl x:Class="FaceFusion.Views.FusionControlView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             mc:Ignorable="d" 
+             d:DesignHeight="300" d:DesignWidth="300">
+    <Grid>
+        <StackPanel>
+            <StackPanel Orientation="Horizontal">
+                <Button Content="Start"
+                    Width="100"
+                    Margin="5"
+                    Command="{Binding StartCommand}" />
+            <Button Content="Pause"
+                    Width="100"
+                    Margin="5"
+                    Command="{Binding PauseCommand}" />
+            <Button Content="Reset"
+                    Width="100"
+                    Margin="5"
+                    Command="{Binding ResetCommand}" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="-27" />
+                <Slider Minimum="-27"
+                    Maximum="27"
+                    SmallChange=".5"
+                    LargeChange="1"
+                    Value="{Binding ElevationAngle, NotifyOnSourceUpdated=True}" 
+                    Width="200" />
+                <TextBlock Text="27" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="ZOffset: 0.35m" />
+                <Slider Minimum="0.35"
+                        Maximum="2"
+                        SmallChange="0.05"
+                        LargeChange="0.1"
+                        x:Name="sliderZ"
+                        Value="{Binding ZOffset, NotifyOnSourceUpdated=True}"
+                        Width="200" />
+                <TextBlock Text="2.0m   " />
+                <TextBlock Text="{Binding ZOffset}" />
+            </StackPanel>
+
+        </StackPanel>
+    </Grid>
+</UserControl>
