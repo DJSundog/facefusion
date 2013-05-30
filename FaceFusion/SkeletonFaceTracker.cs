@@ -9,14 +9,15 @@ using Microsoft.Kinect;
 using Microsoft.Kinect.Toolkit.FaceTracking;
 
 using Point = System.Windows.Point;
+using System.ComponentModel;
 namespace FaceFusion
 {
-    abstract class FaceTrackerBase : IDisposable
+    public abstract class FaceTrackerBase : IDisposable
     {
         protected static FaceTriangle[] faceTriangles;
 
         protected EnumIndexableCollection<FeaturePoint, Vector3DF> facePoints;
-            
+
         protected FaceTracker faceTracker;
 
         protected bool lastFaceTrackSucceeded;
@@ -27,7 +28,7 @@ namespace FaceFusion
 
         public Vector3DF FaceTranslation { get; private set; }
 
-        public Vector3DF FaceRotation { get; private set;}
+        public Vector3DF FaceRotation { get; private set; }
 
         protected abstract Brush FaceBrush { get; }
 
@@ -37,8 +38,8 @@ namespace FaceFusion
 
         protected ColorImageFormat ColorImageFormat { get; private set; }
 
-        private DepthImagePoint[] colorMappedDepthPoints;
-        
+        private DepthImagePoint[] _colorMappedDepthPoints;
+
         public void Dispose()
         {
             if (this.faceTracker != null)
@@ -53,16 +54,33 @@ namespace FaceFusion
 
         public void DrawFaceModel(DrawingContext drawingContext)
         {
-            if (!this.lastFaceTrackSucceeded)
+            if (this.lastFaceTrackSucceeded)
             {
-                return;
+                //DrawFaceMask(drawingContext);
+                //DrawFaceBox(drawingContext);
             }
 
+            DrawOverride(drawingContext);
+        }
+
+        private void DrawFaceBox(DrawingContext drawingContext)
+        {
+            var depthPoint1 = GetDepthPointForColorPoint(FaceRect.Left, FaceRect.Top);
+            var depthPoint2 = GetDepthPointForColorPoint(FaceRect.Right, FaceRect.Bottom);
+
+            var p1 = new Point(depthPoint1.X, depthPoint1.Y);
+            var p2 = new Point(depthPoint2.X, depthPoint2.Y);
+
+            drawingContext.DrawRectangle(null, new Pen(FaceBrush, 1.0), new System.Windows.Rect(p1, p2));
+        }
+
+        private void DrawFaceMask(DrawingContext drawingContext)
+        {
             var faceModelPts = new List<Point>();
             var faceModel = new List<FaceModelTriangle>();
 
             var mapper = Sensor.CoordinateMapper;
-            
+
             for (int i = 0; i < this.facePoints.Count; i++)
             {
                 var facePoint = facePoints[i];
@@ -93,25 +111,15 @@ namespace FaceFusion
             }
 
             drawingContext.DrawGeometry(Brushes.LightYellow, new Pen(Brushes.LightYellow, 1.0), faceModelGroup);
-
-            var depthPoint1 = GetDepthPointForColorPoint(FaceRect.Left, FaceRect.Top);
-            var depthPoint2 = GetDepthPointForColorPoint(FaceRect.Right, FaceRect.Bottom);
-
-            var p1 = new Point(depthPoint1.X, depthPoint1.Y);
-            var p2 = new Point(depthPoint2.X, depthPoint2.Y);
-
-            drawingContext.DrawRectangle(null, new Pen(FaceBrush, 1.0), new System.Windows.Rect(p1, p2));
-
-            DrawOverride(drawingContext);
         }
 
         private DepthImagePoint GetDepthPointForColorPoint(int x, int y)
         {
             int index = x + y * GetWidthFromColorImageFormat(ColorImageFormat);
-            var depthPoint = colorMappedDepthPoints[index];
+            var depthPoint = _colorMappedDepthPoints[index];
             return depthPoint;
         }
-        
+
         private int GetWidthFromColorImageFormat(ColorImageFormat format)
         {
             switch (format)
@@ -127,7 +135,7 @@ namespace FaceFusion
                     return 1280;
                 default:
                     throw new NotImplementedException();
-            }            
+            }
         }
 
         protected void VerifyFaceTracker(KinectSensor kinectSensor)
@@ -148,7 +156,7 @@ namespace FaceFusion
                 }
             }
         }
-        
+
         protected void UpdateFrame(FaceTrackFrame frame)
         {
             this.lastFaceTrackSucceeded = frame.TrackSuccessful;
@@ -167,39 +175,21 @@ namespace FaceFusion
             }
         }
 
-        internal void OnFrameReady(KinectSensor kinectSensor, ColorImageFormat colorImageFormat, byte[] colorImage, DepthImageFormat depthImageFormat, DepthImagePixel[] depthImage, Skeleton skeletonOfInterest = null)
+        internal void OnFrameReady(KinectSensor kinectSensor, ColorImageFormat colorImageFormat, byte[] colorImage, DepthImageFormat depthImageFormat, DepthImagePixel[] depthImage, DepthImagePoint[] colorMappedDepthPoints, Skeleton skeletonOfInterest = null)
         {
             this.Sensor = kinectSensor;
 
             if (this.ColorImageFormat != colorImageFormat)
             {
                 this.ColorImageFormat = colorImageFormat;
-                colorMappedDepthPoints = CreateDepthImagePointsFromColorFormat(colorImageFormat);
             }
 
             if (this.DepthImageFormat != depthImageFormat)
             {
                 this.DepthImageFormat = depthImageFormat;
             }
-
-            var mapper = kinectSensor.CoordinateMapper;
-            
-            mapper.MapColorFrameToDepthFrame(ColorImageFormat, DepthImageFormat, depthImage, colorMappedDepthPoints);
-            
+            this._colorMappedDepthPoints = colorMappedDepthPoints;
             OnFrameReadyOverride(kinectSensor, colorImageFormat, colorImage, depthImageFormat, depthImage, skeletonOfInterest);
-        }
-
-        DepthImagePoint[] CreateDepthImagePointsFromColorFormat(ColorImageFormat colorImageFormat)
-        {
-            switch (colorImageFormat)
-            {
-                case Microsoft.Kinect.ColorImageFormat.RgbResolution640x480Fps30:
-                    return new DepthImagePoint[640 * 480];
-                case Microsoft.Kinect.ColorImageFormat.RgbResolution1280x960Fps12:
-                    return new DepthImagePoint[1280 * 960];
-                default:
-                    throw new NotImplementedException();
-            }
         }
 
         protected abstract void OnFrameReadyOverride(KinectSensor kinectSensor, ColorImageFormat colorImageFormat, byte[] colorImage, DepthImageFormat depthImageFormat, DepthImagePixel[] depthImage, Skeleton skeletonOfInterest = null);
@@ -214,7 +204,7 @@ namespace FaceFusion
 
     }
 
-    class RegionFaceTracker : FaceTrackerBase
+    public class RegionFaceTracker : FaceTrackerBase
     {
         protected override Brush FaceBrush
         {
@@ -250,7 +240,7 @@ namespace FaceFusion
         }
     }
 
-    class SkeletonFaceTracker : FaceTrackerBase
+    public class SkeletonFaceTracker : FaceTrackerBase
     {
         private DepthImagePoint _headPoint;
         private DepthImagePoint _neckPoint;
@@ -263,7 +253,7 @@ namespace FaceFusion
         protected override void DrawOverride(DrawingContext drawingContext)
         {
             var pen = new Pen(Brushes.Blue, 1.0);
-            
+
             drawingContext.DrawEllipse(null, pen, new Point(_headPoint.X, _headPoint.Y), 4, 4);
             drawingContext.DrawEllipse(null, pen, new Point(_neckPoint.X, _neckPoint.Y), 4, 4);
         }
@@ -279,25 +269,48 @@ namespace FaceFusion
                 return;
             }
 
-            VerifyFaceTracker(kinectSensor);
-
-            if (this.faceTracker != null)
-            {
-
-                var shortImage = Helpers.ConvertDepthImagePixelToShort(depthImage);
-                FaceTrackFrame frame = this.faceTracker.Track(
-                    colorImageFormat, colorImage, depthImageFormat, shortImage, skeletonOfInterest);
-
-                UpdateFrame(frame);
-            }
-
             var mapper = kinectSensor.CoordinateMapper;
+
+            var depthWidth = kinectSensor.DepthStream.FrameWidth;
 
             var headJoint = skeletonOfInterest.Joints[JointType.Head];
             var neckJoint = skeletonOfInterest.Joints[JointType.ShoulderCenter];
 
             _headPoint = mapper.MapSkeletonPointToDepthPoint(headJoint.Position, depthImageFormat);
-            _neckPoint = mapper.MapSkeletonPointToDepthPoint(neckJoint.Position, depthImageFormat);
+            var pos = new SkeletonPoint()
+                {
+                    X = headJoint.Position.X,
+                    Y = headJoint.Position.Y - 0.200f,
+                    Z = headJoint.Position.Z
+                };
+            _neckPoint = mapper.MapSkeletonPointToDepthPoint(pos, depthImageFormat);
+
+            _headPoint.X = depthWidth - _headPoint.X;
+            _neckPoint.X = depthWidth - _neckPoint.X;
+
+            //VerifyFaceTracker(kinectSensor);
+
+            //BackgroundWorker worker = new BackgroundWorker();
+
+            //worker.DoWork += (s, e) =>
+            //    {
+                    //if (this.faceTracker != null)
+                    //{
+
+                    //    var shortImage = Helpers.ConvertDepthImagePixelToShort(depthImage);
+                    //    FaceTrackFrame frame = this.faceTracker.Track(
+                    //        colorImageFormat, colorImage, depthImageFormat, shortImage, skeletonOfInterest);
+
+                    //    UpdateFrame(frame);
+                    //}
+
+            //    };
+
+            //worker.RunWorkerCompleted += (s, e) =>
+            //    {
+            //    };
+
+            //worker.RunWorkerAsync();
         }
     }
 }

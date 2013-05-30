@@ -9,14 +9,27 @@ namespace FaceFusion
     static class Helpers
     {
 
-        public static short[] ConvertDepthImagePixelToShort(DepthImagePixel[] depthImage)
+        public static unsafe short[] ConvertDepthImagePixelToShort(DepthImagePixel[] depthImage)
         {
             int len = depthImage.Length;
             short[] ret = new short[len];
 
-            for (int i = 0; i < len; i++)
+            fixed (short* retPtrFixed = ret)
             {
-                ret[i] = depthImage[i].Depth;
+                fixed (DepthImagePixel* srcPtrFixed = depthImage)
+                {
+                    short* retPtr = retPtrFixed;
+                    DepthImagePixel* srcPtr = srcPtrFixed;
+
+                    for (int i = 0; i < len; i++)
+                    {
+                        *(retPtr) = (*(srcPtr)).Depth;
+                        retPtr++;
+                        srcPtr++;
+
+                        //ret[i] = depthImage[i].Depth;
+                    }
+                }
             }
 
             return ret;

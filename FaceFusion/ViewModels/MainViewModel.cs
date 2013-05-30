@@ -13,6 +13,7 @@ using System.Windows;
 using Microsoft.Kinect.Toolkit.Fusion;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Collections.Generic;
 
 namespace FaceFusion.ViewModels
 {
@@ -20,6 +21,7 @@ namespace FaceFusion.ViewModels
     {
         #region Fields
 
+        DateTime _lastFPSUpdate = DateTime.Now;
         double _rotationRateInDegrees = 0;
 
         DispatcherTimer _elevationTimer;
@@ -28,6 +30,9 @@ namespace FaceFusion.ViewModels
         private byte[] _colorImageData;
         private byte[] _mappedColorImageData;
 
+        private WriteableBitmap _residualWritableBitmap;
+        private byte[] _residualImageData;
+        
         private DepthImagePixel[] _depthImagePixels;
         private DepthImagePoint[] _colorMappedToDepthPoints;
 
@@ -71,6 +76,8 @@ namespace FaceFusion.ViewModels
 
         bool _isFusionInitialized;
 
+        float _alignmentEnergy;
+                
         #region Fusion Fields
 
         /// <summary>
@@ -88,7 +95,7 @@ namespace FaceFusion.ViewModels
         /// The reconstruction volume voxel resolution in the X axis
         /// At a setting of 256vpm the volume is 512 / 256 = 2m wide
         /// </summary>
-        private const int VoxelResolutionX = 128;
+        private const int VoxelResolutionX = 256;
 
         /// <summary>
         /// The reconstruction volume voxel resolution in the Y axis
@@ -100,7 +107,7 @@ namespace FaceFusion.ViewModels
         /// The reconstruction volume voxel resolution in the Z axis
         /// At a setting of 256vpm the volume is 512 / 256 = 2m deep
         /// </summary>
-        private const int VoxelResolutionZ = 128;
+        private const int VoxelResolutionZ = 256;
 
 
         private Matrix4 cameraTransform = Matrix4.Identity;
@@ -117,7 +124,7 @@ namespace FaceFusion.ViewModels
         private const ReconstructionProcessor ProcessorType = ReconstructionProcessor.Amp;
 
         /// <summary>
-        /// The zero-based device index to choose for reconstruction processing if the 
+        /// The zero-based device targetIndex to choose for reconstruction processing if the 
         /// ReconstructionProcessor AMP options are selected.
         /// Here we automatically choose a device to use for processing by passing -1, 
         /// </summary>
@@ -149,6 +156,9 @@ namespace FaceFusion.ViewModels
         /// Intermediate storage for the depth float data converted from depth image frame
         /// </summary>
         private FusionFloatImageFrame depthFloatBuffer;
+
+        float[] _residualData;
+        private FusionFloatImageFrame residualFloatBuffer;
 
         /// <summary>
         /// Intermediate storage for the point cloud data converted from depth float image frame
@@ -183,11 +193,6 @@ namespace FaceFusion.ViewModels
         /// </summary>
         private float maxDepthClip = FusionDepthProcessor.DefaultMaximumDepth;
 
-        /// <summary>
-        /// The timer to calculate FPS
-        /// </summary>
-        private DispatcherTimer fpsTimer;
-
         private int rawFrameCount;
 
         /// <summary>
@@ -199,11 +204,6 @@ namespace FaceFusion.ViewModels
         /// The tracking error count
         /// </summary>
         private int trackingErrorCount;
-
-        /// <summary>
-        /// The seconds interval to calculate FPS
-        /// </summary>
-        private const int FpsInterval = 1;
 
         /// <summary>
         /// The sensor depth frame data length
@@ -245,6 +245,186 @@ namespace FaceFusion.ViewModels
 
         #endregion
 
+        #region AlignmentEnergyString
+
+        /// <summary>
+        /// The <see cref="AlignmentEnergyString" /> property's name.
+        /// </summary>
+        public const string AlignmentEnergyStringPropertyName = "AlignmentEnergyString";
+
+        private string _alignmentEnergyString = "Alignment Energy: ";
+
+        /// <summary>
+        /// Gets the AlignmentEnergyString property.
+        /// </summary>
+        public string AlignmentEnergyString
+        {
+            get
+            {
+                return _alignmentEnergyString;
+            }
+
+            set
+            {
+                if (_alignmentEnergyString == value)
+                {
+                    return;
+                }
+
+                var oldValue = _alignmentEnergyString;
+                _alignmentEnergyString = value;
+
+                // Update bindings, no broadcast
+                RaisePropertyChanged(AlignmentEnergyStringPropertyName);
+            }
+        }
+
+        #endregion
+        
+        #region IsCameraTracking
+
+        /// <summary>
+        /// The <see cref="IsCameraTracking" /> property's name.
+        /// </summary>
+        public const string IsCameraTrackingPropertyName = "IsCameraTracking";
+
+        private bool _isCameraTracking = false;
+
+        /// <summary>
+        /// Gets the IsCameraTracking property.
+        /// </summary>
+        public bool IsCameraTracking
+        {
+            get
+            {
+                return _isCameraTracking;
+            }
+
+            set
+            {
+                if (_isCameraTracking == value)
+                {
+                    return;
+                }
+
+                var oldValue = _isCameraTracking;
+                _isCameraTracking = value;
+
+                // Update bindings, no broadcast
+                RaisePropertyChanged(IsCameraTrackingPropertyName);
+            }
+        }
+
+        #endregion
+
+        #region IsIntegrationPaused
+
+        /// <summary>
+        /// The <see cref="IsIntegrationPaused" /> property's name.
+        /// </summary>
+        public const string IsIntegrationPausedPropertyName = "IsIntegrationPaused";
+
+        private bool _isIntegrationPaused = false;
+
+        /// <summary>
+        /// Gets the IsIntegrationPaused property.
+        /// </summary>
+        public bool IsIntegrationPaused
+        {
+            get
+            {
+                return _isIntegrationPaused;
+            }
+
+            set
+            {
+                if (_isIntegrationPaused == value)
+                {
+                    return;
+                }
+
+                var oldValue = _isIntegrationPaused;
+                _isIntegrationPaused = value;
+
+                // Update bindings, no broadcast
+                RaisePropertyChanged(IsIntegrationPausedPropertyName);
+            }
+        }
+
+        #endregion
+
+        #region IsTracking
+
+        /// <summary>
+        /// The <see cref="IsTracking" /> property's name.
+        /// </summary>
+        public const string IsTrackingPropertyName = "IsTracking";
+
+        private bool _isTracking = false;
+
+        /// <summary>
+        /// Gets the IsTracking property.
+        /// </summary>
+        public bool IsTracking
+        {
+            get
+            {
+                return _isTracking;
+            }
+
+            set
+            {
+                if (_isTracking == value)
+                {
+                    return;
+                }
+
+                var oldValue = _isTracking;
+                _isTracking = value;
+
+                // Update bindings, no broadcast
+                RaisePropertyChanged(IsTrackingPropertyName);
+            }
+        }
+
+        #endregion
+
+        #region ShowRGBOverlay
+
+        /// <summary>
+        /// The <see cref="ShowRGBOverlay" /> property's name.
+        /// </summary>
+        public const string ShowRGBOverlayPropertyName = "ShowRGBOverlay";
+
+        private bool _showRGBOverlay = false;
+
+        /// <summary>
+        /// Gets the ShowRGBOverlay property.
+        /// </summary>
+        public bool ShowRGBOverlay
+        {
+            get
+            {
+                return _showRGBOverlay;
+            }
+
+            set
+            {
+                if (_showRGBOverlay == value)
+                {
+                    return;
+                }
+
+                var oldValue = _showRGBOverlay;
+                _showRGBOverlay = value;
+
+                // Update bindings, no broadcast
+                RaisePropertyChanged(ShowRGBOverlayPropertyName);
+            }
+        }
+
+        #endregion
+
         #region ZOffset
 
         /// <summary>
@@ -252,7 +432,7 @@ namespace FaceFusion.ViewModels
         /// </summary>
         public const string ZOffsetPropertyName = "ZOffset";
 
-        private double _zOffset = 0.7;
+        private double _zOffset = 0.9;
 
         /// <summary>
         /// Gets the ZOffset property.
@@ -311,6 +491,8 @@ namespace FaceFusion.ViewModels
 
                 var oldValue = _kinectSensor;
                 _kinectSensor = value;
+
+                FaceTrackingVM.Kinect = _kinectSensor;
 
                 // Update bindings, no broadcast
                 RaisePropertyChanged(KinectSensorPropertyName);
@@ -524,6 +706,78 @@ namespace FaceFusion.ViewModels
 
         #endregion
 
+        #region ResidualImage
+
+        /// <summary>
+        /// The <see cref="ResidualImage" /> property's name.
+        /// </summary>
+        public const string ResidualImagePropertyName = "ResidualImage";
+
+        private ImageSource _residualImage = null;
+
+        /// <summary>
+        /// Gets the ResidualImage property.
+        /// </summary>
+        public ImageSource ResidualImage
+        {
+            get
+            {
+                return _residualImage;
+            }
+
+            set
+            {
+                if (_residualImage == value)
+                {
+                    return;
+                }
+
+                var oldValue = _residualImage;
+                _residualImage = value;
+
+                // Update bindings, no broadcast
+                RaisePropertyChanged(ResidualImagePropertyName);
+            }
+        }
+
+        #endregion
+
+        #region Fusion2OutputImage
+
+        /// <summary>
+        /// The <see cref="Fusion2OutputImage" /> property's name.
+        /// </summary>
+        public const string Fusion2OutputImagePropertyName = "Fusion2OutputImage";
+
+        private ImageSource _fusion2OutputImage = null;
+
+        /// <summary>
+        /// Gets the Fusion2OutputImage property.
+        /// </summary>
+        public ImageSource Fusion2OutputImage
+        {
+            get
+            {
+                return _fusion2OutputImage;
+            }
+
+            set
+            {
+                if (_fusion2OutputImage == value)
+                {
+                    return;
+                }
+
+                var oldValue = _fusion2OutputImage;
+                _fusion2OutputImage = value;
+
+                // Update bindings, no broadcast
+                RaisePropertyChanged(Fusion2OutputImagePropertyName);
+            }
+        }
+
+        #endregion
+
         #region StatusMessage
 
         /// <summary>
@@ -558,6 +812,42 @@ namespace FaceFusion.ViewModels
             }
         }
 
+        #endregion
+
+        #region FaceTrackingVM
+
+        /// <summary>
+        /// The <see cref="FaceTrackingVM" /> property's name.
+        /// </summary>
+        public const string FaceTrackingVMPropertyName = "FaceTrackingVM";
+
+        private FaceTrackingViewModel _faceTrackingVM = new FaceTrackingViewModel();
+
+        /// <summary>
+        /// Gets the FaceTrackingVM property.
+        /// </summary>
+        public FaceTrackingViewModel FaceTrackingVM
+        {
+            get
+            {
+                return _faceTrackingVM;
+            }
+
+            set
+            {
+                if (_faceTrackingVM == value)
+                {
+                    return;
+                }
+
+                var oldValue = _faceTrackingVM;
+                _faceTrackingVM = value;
+
+                // Update bindings, no broadcast
+                RaisePropertyChanged(FaceTrackingVMPropertyName);
+            }
+        }
+        
         #endregion
 
         #endregion
@@ -620,6 +910,11 @@ namespace FaceFusion.ViewModels
                 if (null != this.depthFloatBuffer)
                 {
                     this.depthFloatBuffer.Dispose();
+                }
+
+                if (null != this.residualFloatBuffer)
+                {
+                    this.residualFloatBuffer.Dispose();
                 }
 
                 if (null != this.pointCloudBuffer)
@@ -725,7 +1020,17 @@ namespace FaceFusion.ViewModels
                 }
 
                 newSensor.SkeletonStream.TrackingMode = SkeletonTrackingMode.Seated;
-                newSensor.SkeletonStream.Enable();
+                
+                var smoothParams = new TransformSmoothParameters()
+                    {
+                        Smoothing = 0.8f,
+                        Correction = 0.2f,
+                        Prediction = 0.5f,
+                        JitterRadius = 0.10f,
+                        MaxDeviationRadius = 0.04f
+                    };
+
+                newSensor.SkeletonStream.Enable(smoothParams);
                 newSensor.AllFramesReady += KinectSensorOnAllFramesReady;
 
                 _elevationAngle = newSensor.ElevationAngle;
@@ -773,6 +1078,8 @@ namespace FaceFusion.ViewModels
             bool depthFrameUpdated = false;
             bool skeletonFrameUpdated = false;
 
+            int depthFrameNumber = 0;
+
             using (var colorImageFrame = e.OpenColorImageFrame())
             {
                 if (colorImageFrame != null)
@@ -786,10 +1093,9 @@ namespace FaceFusion.ViewModels
                         _colorHeight = colorImageFrame.Height;
                         _currentColorImageFormat = colorImageFrame.Format;
 
-                        _colorMappedToDepthPoints = new DepthImagePoint[_colorWidth * _colorHeight];
-
                         _colorImageData = new byte[colorImageFrame.PixelDataLength];
 
+                        _colorMappedToDepthPoints = new DepthImagePoint[_colorWidth * _colorHeight];
                     }
 
                     colorImageFrame.CopyPixelDataTo(this._colorImageData);
@@ -801,6 +1107,7 @@ namespace FaceFusion.ViewModels
             {
                 if (depthImageFrame != null)
                 {
+                    depthFrameNumber = depthImageFrame.FrameNumber;
 
                     // Make a copy of the color frame for displaying.
                     var haveNewFormat = this._currentDepthImageFormat != depthImageFrame.Format;
@@ -809,6 +1116,9 @@ namespace FaceFusion.ViewModels
                         this._currentDepthImageFormat = depthImageFrame.Format;
                         _depthWidth = depthImageFrame.Width;
                         _depthHeight = depthImageFrame.Height;
+
+                        FaceTrackingVM.DepthWidth = _depthWidth;
+                        FaceTrackingVM.DepthHeight = _depthHeight;
 
                         this._depthImagePixels = new DepthImagePixel[depthImageFrame.PixelDataLength];
                         this._modDepthImagePixels = new DepthImagePixel[depthImageFrame.PixelDataLength];
@@ -825,6 +1135,12 @@ namespace FaceFusion.ViewModels
 
                         _colorImageWritableBitmap = new WriteableBitmap(
                             _depthWidth, _depthHeight, 96, 96, PixelFormats.Bgr32, null);
+                        
+                        _residualImageData = new byte[depthImageFrame.PixelDataLength * 4];
+                        _residualWritableBitmap = new WriteableBitmap(
+                            _depthWidth, _depthHeight, 96, 96, PixelFormats.Bgr32, null);
+
+                        ResidualImage = _residualWritableBitmap;
 
                         ColorImage = _colorImageWritableBitmap;
 
@@ -859,7 +1175,21 @@ namespace FaceFusion.ViewModels
                 ProcessSkeletonFrame();
                 ProcessColorFrame();
                 ProcessDepthFrame();
+
+                var skeletonList = new List<Skeleton>();
+                if (_activeSkeleton != null)
+                {
+                    skeletonList.Add(_activeSkeleton);
+                }
+
+                FaceTrackingVM.TrackFrame(_currentColorImageFormat, 
+                                         (byte[])_colorImageData.Clone(), 
+                                         _currentDepthImageFormat, 
+                                         (DepthImagePixel[])_depthImagePixels.Clone(), 
+                                         skeletonList, 
+                                         depthFrameNumber);
             }
+            CheckFPS();
         }
 
         private void ProcessSkeletonFrame()
@@ -886,11 +1216,50 @@ namespace FaceFusion.ViewModels
             int height = _depthHeight;
 
             Array.Clear(_modDepthImagePixels, 0, _modDepthImagePixels.Length);
-            short defaultDepth = (short)KinectSensor.DepthStream.UnknownDepth;
-            var defaultDIP = new DepthImagePixel() { Depth = defaultDepth };
+
+            //short defaultDepth = (short)KinectSensor.DepthStream.UnknownDepth;
+            //var defaultDIP = new DepthImagePixel() { Depth = defaultDepth };
 
             double maxDepth = 4000;
             double minDepth = 400;
+
+            bool processModImage = _activeSkeleton != null;
+
+            double hx=0, hy=0, hzMax=0, hzMin=0;
+            double headNeckDist2 = 0;
+            double headDepthThreshold = 300;
+
+            if (processModImage)
+            {
+                var mapper = _kinectSensor.CoordinateMapper;
+
+                var headJoint = _activeSkeleton.Joints[JointType.Head];
+                var neckJoint = _activeSkeleton.Joints[JointType.ShoulderCenter];
+                if (headJoint.TrackingState == JointTrackingState.Tracked &&
+                    neckJoint.TrackingState == JointTrackingState.Tracked)
+                {
+                    var headPoint = mapper.MapSkeletonPointToDepthPoint(headJoint.Position, _currentDepthImageFormat);
+                    var pos = new SkeletonPoint()
+                        {
+                            X = headJoint.Position.X,
+                            Y = headJoint.Position.Y - 0.200f,
+                            Z = headJoint.Position.Z
+                        };
+                    var neckPoint = mapper.MapSkeletonPointToDepthPoint(pos, _currentDepthImageFormat);
+
+                    hx = _depthWidth - headPoint.X;
+                    hy = headPoint.Y;
+                    hzMax = headPoint.Depth + headDepthThreshold;
+                    hzMin = headPoint.Depth - headDepthThreshold;
+                    double factor = 1;
+                    headNeckDist2 = (Math.Pow(neckPoint.X - headPoint.X, 2) +
+                                     Math.Pow(neckPoint.Y - headPoint.Y, 2)) * factor * factor;
+                }
+                else
+                {
+                    processModImage = false;
+                }
+            }
 
             fixed (byte* depthPtrFixed = _depthImageData, modDepthPtrFixed = _modDepthImageData)
             {
@@ -913,36 +1282,49 @@ namespace FaceFusion.ViewModels
                         byte value = (byte)(255 - 255 * (depth - minDepth) / maxDepth);
 
                         byte modValue = 0;
+                        byte modRMult = 0;
 
-                        if (dip.IsKnownDepth && dip.PlayerIndex == _activeSkeletonId)
+                        if (processModImage &&
+                            playerIndex == _activeSkeletonId)
                         {
+                            //var dx = x - hx;
+                            //var dy = y - hy;
+                            //var dist2 = dx * dx + dy * dy;
+
                             modValue = value;
-                            _modDepthImagePixels[targetIndex] = new DepthImagePixel() { Depth = depth };
-                        }
-                        else
-                        {
-                            _modDepthImagePixels[targetIndex] = defaultDIP;
-                        }
 
-                        if (!dip.IsKnownDepth)
+                            //if (dist2 < headNeckDist2 &&
+                            //    depth >= hzMin &&
+                            //    depth <= hzMax)
+                            {
+                                modRMult = 1;
+                                _modDepthImagePixels[srcIndex] = new DepthImagePixel() { Depth = depth };
+                            }
+                        }
+                        //else
+                        //{
+                        //    _modDepthImagePixels[targetIndex] = defaultDIP;
+                        //}
+                        
+                        if (depth <= 0)
                         {
                             value = 0;
                         }
 
-                        //_depthImageData[index * 4 + 0] = value;
-                        //_depthImageData[index * 4 + 1] = value;
-                        //_depthImageData[index * 4 + 2] = value;
+                        //_depthImageData[targetIndex * 4 + 0] = value;
+                        //_depthImageData[targetIndex * 4 + 1] = value;
+                        //_depthImageData[targetIndex * 4 + 2] = value;
 
                         int shiftValue = ((255 << 24) | (value << 16) | (value << 8) | (value));
 
                         *depthIntPtr = shiftValue;
                         depthIntPtr++;
 
-                        //_modDepthImageData[index * 4 + 0] = modValue;
-                        //_modDepthImageData[index * 4 + 1] = modValue;
-                        //_modDepthImageData[index * 4 + 2] = modValue;
+                        //_modDepthImageData[targetIndex * 4 + 0] = modValue;
+                        //_modDepthImageData[targetIndex * 4 + 1] = modValue;
+                        //_modDepthImageData[targetIndex * 4 + 2] = modValue;
 
-                        int shiftModValue = ((255 << 24) | (modValue << 16) | (modValue << 8) | (modValue));
+                        int shiftModValue = ((255 << 24) | (modValue << 16) | ((modValue * modRMult) << 8) | ((modValue * modRMult)));
 
                         *modDepthIntPtr = shiftModValue;
                         modDepthIntPtr++;
@@ -963,18 +1345,19 @@ namespace FaceFusion.ViewModels
                 width * 4,
                 0);
 
-            ProcessFusionFrame((DepthImagePixel[])_depthImagePixels.Clone());
+            ProcessFusionFrame((DepthImagePixel[])_modDepthImagePixels.Clone());
         }
 
         private unsafe void ProcessColorFrame()
         {
-            int width = _colorWidth;
-            int height = _colorHeight;
+            int colorWidth = _colorWidth;
+            int colorHeight = _colorHeight;
             int depthWidth = _depthWidth;
             int depthHeight = _depthHeight;
 
             var mapper = KinectSensor.CoordinateMapper;
 
+            //mapper.MapDepthFrameToColorFrame(_currentDepthImageFormat, _depthImagePixels, _currentColorImageFormat, _colorMappedToDepthPoints);
             mapper.MapColorFrameToDepthFrame(_currentColorImageFormat, _currentDepthImageFormat, _depthImagePixels, _colorMappedToDepthPoints);
 
             Array.Clear(_mappedColorImageData, 0, _mappedColorImageData.Length);
@@ -984,21 +1367,27 @@ namespace FaceFusion.ViewModels
                 int* colorIntPtr = (int*)colorPtrFixed;
                 int* mappedColorIntPtr = (int*)mappedColorPtrFixed;
 
-                for (int y = 0; y < height; y++)
+                for (int y = 0; y < colorHeight; y+=1)
                 {
-                    for (int x = 0; x < width; x++)
+                    for (int x = 0; x < colorWidth; x+=1)
                     {
-                        int index = x + y * width;
+                        int srcIndex = x + y * colorWidth;
+                        //int depthIndex = (depthWidth - 1 - x) + y * depthWidth;
 
-                        var coord = _colorMappedToDepthPoints[index];
+                        //bool isKnownDepth = _depthImagePixels[depthIndex].IsKnownDepth;
+
+                        //if (!isKnownDepth)
+                        //    continue;
+
+                        var coord = _colorMappedToDepthPoints[srcIndex];
                         int cx = coord.X;
-                        int cy = coord.Y;
+                        int cy = coord.Y; 
                         if (cx >= 0 && cx < depthWidth &&
                             cy >= 0 && cy < depthHeight)
                         {
                             int targetIndex = (depthWidth - 1 - cx) + cy * depthWidth;
 
-                            *(mappedColorIntPtr + targetIndex) = *(colorIntPtr + index);
+                            *(mappedColorIntPtr + targetIndex) = *(colorIntPtr + srcIndex);
                         }
                     }
                 }
@@ -1041,6 +1430,32 @@ namespace FaceFusion.ViewModels
             }
 
             throw new ArgumentOutOfRangeException("imageFormat");
+        }
+
+        /// <summary>
+        /// Update the FPS reading in the status text bar
+        /// </summary>
+        /// <param name="sender">object sending the event</param>
+        /// <param name="e">event arguments</param>
+        private void CheckFPS()
+        {
+            DateTime now = DateTime.Now;
+            var span = now - _lastFPSUpdate;
+            if (span.TotalSeconds < 1.0)
+                return;
+            
+            _lastFPSUpdate = now;
+
+            double fusionFPS = this.processedFrameCount / span.TotalSeconds;
+            double rawFPS = this.rawFrameCount / span.TotalSeconds;
+
+            // Update the FPS reading
+
+            StatusMessage = String.Format("Kinect FPS: {0} Fusion FPS: {1}", rawFPS.ToString("F1"), fusionFPS.ToString("F1"));
+
+            // Reset the frame count
+            this.processedFrameCount = 0;
+            this.rawFrameCount = 0;
         }
 
         #region Fusion
@@ -1104,19 +1519,14 @@ namespace FaceFusion.ViewModels
 
             // Depth frames generated from the depth input
             this.depthFloatBuffer = new FusionFloatImageFrame((int)ImageSize.Width, (int)ImageSize.Height);
+            this.residualFloatBuffer = new FusionFloatImageFrame((int)ImageSize.Width, (int)ImageSize.Height);
+            _residualData = new float[(int)(ImageSize.Width * ImageSize.Height)];
 
             // Point cloud frames generated from the depth float input
             this.pointCloudBuffer = new FusionPointCloudImageFrame((int)ImageSize.Width, (int)ImageSize.Height);
 
             // Create images to raycast the Reconstruction Volume
             this.shadedSurfaceColorFrame = new FusionColorImageFrame((int)ImageSize.Width, (int)ImageSize.Height);
-
-            // Initialize and start the FPS timer
-            this.fpsTimer = new DispatcherTimer();
-            this.fpsTimer.Tick += new EventHandler(this.FpsTimerTick);
-            this.fpsTimer.Interval = new TimeSpan(0, 0, FpsInterval);
-
-            this.fpsTimer.Start();
 
             // Reset the reconstruction
             this.ResetReconstruction();
@@ -1159,33 +1569,8 @@ namespace FaceFusion.ViewModels
                 }
             }
 
-            if (null != this.fpsTimer)
-            {
-                // Reset the processed frame count and reset the FPS timer
-                this.fpsTimer.Stop();
-                this.rawFrameCount = 0;
-                this.processedFrameCount = 0;
-                this.fpsTimer.Start();
-            }
-        }
-
-        /// <summary>
-        /// Update the FPS reading in the status text bar
-        /// </summary>
-        /// <param name="sender">object sending the event</param>
-        /// <param name="e">event arguments</param>
-        private void FpsTimerTick(object sender, EventArgs e)
-        {
-            double fusionFPS = this.processedFrameCount / (double)FpsInterval;
-            double rawFPS = this.rawFrameCount / (double)FpsInterval;
-
-            // Update the FPS reading
-
-            StatusMessage = String.Format("Kinect FPS: {0} Fusion FPS: {1}", rawFPS, fusionFPS);
-
-            // Reset the frame count
-            this.processedFrameCount = 0;
             this.rawFrameCount = 0;
+            this.processedFrameCount = 0;
         }
 
         /// <summary>
@@ -1204,17 +1589,26 @@ namespace FaceFusion.ViewModels
 
                 worker.DoWork += (s, ee) =>
                     {
-                        ProcessFusionFrameBackground(depthPixels);
+                        ee.Result = ProcessFusionFrameBackground(depthPixels);
                     };
 
                 worker.RunWorkerCompleted += (s, e) =>
                     {
+                        bool lastTrackSucceeded = (bool)e.Result;
+
+                        this.IsTracking = lastTrackSucceeded;
+
                         // Write the pixel data into our bitmap
                         this.colorFusionBitmap.WritePixels(
                             new Int32Rect(0, 0, this.colorFusionBitmap.PixelWidth, this.colorFusionBitmap.PixelHeight),
                             this.colorPixels,
                             this.colorFusionBitmap.PixelWidth * sizeof(int),
                             0);
+
+                        _residualWritableBitmap.WritePixels(new Int32Rect(0, 0, _residualWritableBitmap.PixelWidth, _residualWritableBitmap.PixelHeight),
+                                                            _residualImageData, _residualWritableBitmap.PixelWidth * sizeof(int), 0);
+
+                        this.AlignmentEnergyString = "Alignment Energy: " + _alignmentEnergy.ToString("F6");
 
                         this.processingFrame = false;
                     };
@@ -1224,12 +1618,12 @@ namespace FaceFusion.ViewModels
 
             }
         }
-
+        
         /// <summary>
         /// Process the depth input
         /// </summary>
         /// <param name="depthPixels">The depth data array to be processed</param>
-        private void ProcessFusionFrameBackground(DepthImagePixel[] depthPixels)
+        private bool ProcessFusionFrameBackground(DepthImagePixel[] depthPixels)
         {
             Debug.Assert(null != this.volume, "volume should be initialized");
             Debug.Assert(null != this.shadedSurfaceColorFrame, "shaded surface should be initialized");
@@ -1247,19 +1641,14 @@ namespace FaceFusion.ViewModels
                     FusionDepthProcessor.DefaultMaximumDepth,
                     false);
 
-                float alignmentEnergy;
-                this.worldToCameraTransform = volume.GetCurrentWorldToCameraTransform();
-
                 bool trackingSucceeded = this.volume.AlignDepthFloatToReconstruction(
                         depthFloatBuffer,
                         FusionDepthProcessor.DefaultAlignIterationCount,
-                        null,
-                        out alignmentEnergy,
-                        this.worldToCameraTransform);
+                        residualFloatBuffer,
+                        out _alignmentEnergy,
+                        volume.GetCurrentWorldToCameraTransform());
 
-                this.worldToCameraTransform = volume.GetCurrentWorldToCameraTransform();
-
-                this.volume.IntegrateFrame(depthFloatBuffer, IntegrationWeight, this.worldToCameraTransform);
+                ProcessResidualImage();
 
                 // ProcessFrame will first calculate the camera pose and then integrate
                 // if tracking is successful
@@ -1281,10 +1670,13 @@ namespace FaceFusion.ViewModels
                 }
                 else
                 {
-                    Matrix4 calculatedCameraPose = this.volume.GetCurrentWorldToCameraTransform();
+                    this.worldToCameraTransform = volume.GetCurrentWorldToCameraTransform();
 
-                    // Set the camera pose and reset tracking errors
-                    this.worldToCameraTransform = calculatedCameraPose;
+                    if (!IsIntegrationPaused)
+                    {
+                        this.volume.IntegrateFrame(depthFloatBuffer, IntegrationWeight, this.worldToCameraTransform);
+                    }
+
                     this.trackingErrorCount = 0;
                 }
 
@@ -1325,13 +1717,20 @@ namespace FaceFusion.ViewModels
                 c.M44 = (float)m.M44;
                 cameraTransform = c;
 
+                var viewCam = cameraTransform;
+
+                if (!IsTracking || IsCameraTracking)
+                {
+                    viewCam = worldToCameraTransform;
+                }
+
                 // Calculate the point cloud
-                this.volume.CalculatePointCloud(this.pointCloudBuffer, this.cameraTransform);
+                this.volume.CalculatePointCloud(this.pointCloudBuffer, viewCam);
 
                 // Shade point cloud and render
                 FusionDepthProcessor.ShadePointCloud(
                     this.pointCloudBuffer,
-                    this.cameraTransform,
+                    viewCam,
                     this.shadedSurfaceColorFrame,
                     null);
 
@@ -1339,14 +1738,43 @@ namespace FaceFusion.ViewModels
 
                 // The input frame was processed successfully, increase the processed frame count
                 ++this.processedFrameCount;
+
+                return trackingSucceeded;
             }
             catch (InvalidOperationException ex)
             {
                 StatusMessage = ex.Message;
+                return false;
             }
             finally
             {
             }
+        }
+
+        private void ProcessResidualImage()
+        {
+            residualFloatBuffer.CopyPixelDataTo(_residualData);
+            
+            int len = _residualData.Length;
+            
+            for (int i = 0; i < len; i++)
+            {
+                float data = _residualData[i];
+
+                if (data <= 1.0)
+                {
+                    _residualImageData[i * 4 + 0] = (byte)(255 * (1 - data));
+                    _residualImageData[i * 4 + 1] = (byte)(255 * (1 - Math.Abs(data)));
+                    _residualImageData[i * 4 + 2] = (byte)(255 * (1 + data));
+                }
+                else
+                {
+                    _residualImageData[i * 4 + 0] = 0;
+                    _residualImageData[i * 4 + 1] = 0;
+                    _residualImageData[i * 4 + 2] = 0;
+                }
+            }
+
         }
 
         #endregion

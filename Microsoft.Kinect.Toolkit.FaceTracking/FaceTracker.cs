@@ -43,6 +43,8 @@ namespace Microsoft.Kinect.Toolkit.FaceTracking
 
         private readonly KinectSensor sensor;
 
+        private readonly CoordinateMapper mapper;
+
         private readonly Stopwatch startOrContinueTrackingStopwatch = new Stopwatch();
 
         private readonly Stopwatch trackStopwatch = new Stopwatch();
@@ -146,6 +148,9 @@ namespace Microsoft.Kinect.Toolkit.FaceTracking
 
             this.operationMode = OperationMode.Kinect;
             this.sensor = sensor;
+
+            this.mapper = new CoordinateMapper(sensor.CoordinateMapper.ColorToDepthRelationalParameters);
+
             this.initializationColorImageFormat = sensor.ColorStream.Format;
             this.initializationDepthImageFormat = sensor.DepthStream.Format;
 
@@ -486,10 +491,10 @@ namespace Microsoft.Kinect.Toolkit.FaceTracking
                         Depth = depthZ,
                     };
 
-                    colorPoint = this.sensor.CoordinateMapper.MapDepthPointToColorPoint(
-                        this.sensor.DepthStream.Format,
+                    colorPoint = this.mapper.MapDepthPointToColorPoint(
+                        this.initializationDepthImageFormat,
                         depthImagePoint,
-                        this.sensor.ColorStream.Format);
+                        this.initializationColorImageFormat);
                 }
                 catch (InvalidOperationException e)
                 {
