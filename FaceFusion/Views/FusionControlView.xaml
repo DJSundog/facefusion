@@ -24,11 +24,14 @@
                 <CheckBox Content="Show RGB Overlays"
                           IsChecked="{Binding ShowRGBOverlay}"
                           Margin="5" />
-                <CheckBox Content="Track Cam"
-                          IsChecked="{Binding IsCameraTracking}"
+                <CheckBox Content="Track Model"
+                          IsChecked="{Binding IsTrackingModel}"
                           Margin="5" />
                 <CheckBox Content="Pause Integration"
                           IsChecked="{Binding IsIntegrationPaused}"
+                          Margin="5" />
+                <CheckBox Content="User Fusion Only"
+                          IsChecked="{Binding UserFusionOnly}"
                           Margin="5" />
             </StackPanel>
             <StackPanel Orientation="Horizontal">

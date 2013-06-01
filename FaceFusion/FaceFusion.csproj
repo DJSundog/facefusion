@@ -111,7 +111,11 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
+    <Compile Include="MatrixExtensions.cs" />
     <Compile Include="ViewModels\FaceTrackingViewModel.cs" />
+    <Compile Include="ViewModels\FormatHelper.cs" />
+    <Compile Include="ViewModels\FusionWorkItem.cs" />
+    <Compile Include="ViewModels\KinectFrameWorkItem.cs" />
     <Compile Include="Views\FaceTrackingView.xaml.cs">
       <DependentUpon>FaceTrackingView.xaml</DependentUpon>
     </Compile>

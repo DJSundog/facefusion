@@ -1,6 +1,6 @@
 ﻿//------------------------------------------------------------------------------
 // <copyright file="AssemblyInfo.cs" company="Microsoft">
-//     Copyright (c) Microsoft Corporation.  All rights reserved.
+//     Copyright (updateMatrix) Microsoft Corporation.  All rights reserved.
 // </copyright>
 //------------------------------------------------------------------------------
 
@@ -52,4 +52,4 @@ using System.Windows;
 // [assembly: AssemblyVersion("1.0.*")]
 [assembly: NeutralResourcesLanguageAttribute("en-US")]
 [assembly: CLSCompliant(true)]
-[assembly: AssemblyCopyrightAttribute("Copyright (c) Joshua Blake 2013")]
+[assembly: AssemblyCopyrightAttribute("Copyright (updateMatrix) Joshua Blake 2013")]

@@ -19,7 +19,7 @@ namespace FaceFusion.ViewModels
 
         private ColorImageFormat _currentColorImageFormat = ColorImageFormat.Undefined;
 
-        private DepthImagePoint[] _colorMappedDepthPoints;
+        //private DepthImagePoint[] _colorMappedDepthPoints;
 
         #endregion
 
@@ -181,7 +181,7 @@ namespace FaceFusion.ViewModels
                     SkeletonFaceTracker skeletonFaceTracker;
                     if (this.skeletonFaceTrackers.TryGetValue(skeleton.TrackingId, out skeletonFaceTracker))
                     {
-                        skeletonFaceTracker.OnFrameReady(this.Kinect, colorImageFormat, colorImage, depthImageFormat, depthImage, _colorMappedDepthPoints, skeleton);
+                        skeletonFaceTracker.OnFrameReady(this.Kinect, colorImageFormat, colorImage, depthImageFormat, depthImage, null, skeleton);
                         skeletonFaceTracker.LastTrackedFrame = frameNumber;
                     }
                 }

@@ -58,10 +58,10 @@
             </Grid>
             <Grid Grid.Column="4"
                   Grid.Row="2">
-                <Image Source="{Binding Fusion2OutputImage}" />
+                <!--<Image Source="{Binding Fusion2OutputImage}" />
                 <Image Source="{Binding ColorImage}"
                        Visibility="{Binding ShowRGBOverlay, Converter={StaticResource BooleanToVisibility}}"
-                       Opacity="0.7" />
+                       Opacity="0.7" />-->
             </Grid>
         </Grid>
     </Viewbox>
