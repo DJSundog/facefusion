@@ -177,7 +177,7 @@ namespace FaceFusion.Views
                     return;
                 }
 
-                // Check for image format changes.  The FaceTracker doesn't
+                // Check for image _currentKinectFormat changes.  The FaceTracker doesn't
                 // deal with that so we need to reset.
                 if (this.depthImageFormat != depthImageFrame.Format)
                 {

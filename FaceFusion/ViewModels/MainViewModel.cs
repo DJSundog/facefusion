@@ -34,39 +34,35 @@ namespace FaceFusion.ViewModels
         DispatcherTimer _elevationTimer;
 
         private WriteableBitmap _colorImageWritableBitmap;
-        private byte[] _colorImageData;
         private byte[] _mappedColorImageData;
 
         private WriteableBitmap _residualWritableBitmap;
         private byte[] _residualImageData;
 
-        private DepthImagePixel[] _depthImagePixels;
-        private DepthImagePoint[] _colorMappedToDepthPoints;
+        private SynchronizationContext _syncContext = SynchronizationContext.Current;
 
-        private Pool<FusionWorkItem, DepthImageFormat> _fusionDepthPool;
+        private Pool<FusionWorkItem, DepthImageFormat> _fusionWorkItemPool;
+        private WorkQueue<FusionWorkItem> _fusionWorkQueue;
+
+        private Pool<KinectFrameWorkItem, KinectFormat> _kinectFrameWorkItemPool;
+        private WorkQueue<KinectFrameWorkItem> _kinectWorkQueue;
 
         private byte[] _depthImageData;
         private WriteableBitmap _depthImageWritableBitmap;
 
-        private DepthImagePixel[] _modDepthImagePixels;
         private byte[] _modDepthImageData;
         private WriteableBitmap _modDepthImageWritableBitmap;
 
-        private ColorImageFormat _currentColorImageFormat = ColorImageFormat.RgbResolution640x480Fps30;
-        private DepthImageFormat _currentDepthImageFormat = DepthImageFormat.Resolution320x240Fps30;
+        private const ColorImageFormat DefaultColorImageFormat = ColorImageFormat.RgbResolution640x480Fps30;
+        private const DepthImageFormat DefaultDepthImageFormat = DepthImageFormat.Resolution320x240Fps30;
+        private KinectFormat _currentKinectFormat;
 
-        Skeleton[] _skeletons;
+        private const int DefaultNumSkeletons = 6;
 
         Skeleton _activeSkeleton;
         int _activeSkeletonId;
 
         public const int InactiveSkeletonId = -1;
-
-        private int _colorWidth;
-        private int _colorHeight;
-
-        private int _depthWidth;
-        private int _depthHeight;
 
         /// <summary>
         /// Track whether Dispose has been called
@@ -91,10 +87,6 @@ namespace FaceFusion.ViewModels
         int _activeSkeletonLostLimit = 60;
 
         #endregion
-
-        SynchronizationContext _syncContext = SynchronizationContext.Current;
-
-        WorkQueue<FusionWorkItem> _fusionWorkQueue;
 
         #region Fusion Fields
 
@@ -190,7 +182,7 @@ namespace FaceFusion.ViewModels
         {
             get
             {
-                return FormatHelper.GetDepthSize(_currentDepthImageFormat);
+                return FormatHelper.GetDepthSize(DefaultDepthImageFormat);
             }
         }
 
@@ -957,6 +949,12 @@ namespace FaceFusion.ViewModels
                     _fusionWorkQueue = null;
                 }
 
+                if (_kinectWorkQueue != null)
+                {
+                    _kinectWorkQueue.Dispose();
+                    _kinectWorkQueue = null;
+                }
+
                 if (null != this.depthFloatBuffer)
                 {
                     this.depthFloatBuffer.Dispose();
@@ -990,17 +988,33 @@ namespace FaceFusion.ViewModels
 
         #region Private Methods
 
-        #region Kinect
+        #region Initialization
 
         private void Init()
         {
-            _fusionDepthPool = new Pool<FusionWorkItem, DepthImageFormat>(5, _currentDepthImageFormat, FusionWorkItem.Create);
+
+            _currentKinectFormat = new KinectFormat()
+            {
+                ColorImageFormat = ColorImageFormat.Undefined,
+                DepthImageFormat = DepthImageFormat.Undefined,
+                NumSkeletons = 0
+            };
+
+            _fusionWorkItemPool = new Pool<FusionWorkItem, DepthImageFormat>(5, _currentKinectFormat.DepthImageFormat, FusionWorkItem.Create);
 
             _fusionWorkQueue = new WorkQueue<FusionWorkItem>(ProcessFusionFrameBackground)
-                {
-                    CanceledCallback = ReturnUnusedWorkItem,
-                    MaxQueueLength = 2
-                };
+            {
+                CanceledCallback = ReturnFusionWorkItem,
+                MaxQueueLength = 2
+            };
+
+            _kinectFrameWorkItemPool = new Pool<KinectFrameWorkItem, KinectFormat>(5, _currentKinectFormat, KinectFrameWorkItem.Create);
+
+            _kinectWorkQueue = new WorkQueue<KinectFrameWorkItem>(ProcessKinectFrame)
+            {
+                CanceledCallback = ReturnKinectFrameWorkItem,
+                MaxQueueLength = 1
+            };
 
             _elevationTimer = new DispatcherTimer();
             _elevationTimer.Interval = TimeSpan.FromMilliseconds(500);
@@ -1013,7 +1027,7 @@ namespace FaceFusion.ViewModels
 
             KinectSensorChooser.Start();
         }
-        
+
         private void InitRelayCommands()
         {
             StartCommand = new RelayCommand(() =>
@@ -1065,8 +1079,8 @@ namespace FaceFusion.ViewModels
         {
             try
             {
-                newSensor.ColorStream.Enable(_currentColorImageFormat);
-                newSensor.DepthStream.Enable(_currentDepthImageFormat);
+                newSensor.ColorStream.Enable(DefaultColorImageFormat);
+                newSensor.DepthStream.Enable(DefaultDepthImageFormat);
                 try
                 {
                     // This will throw on non Kinect For Windows devices.
@@ -1082,13 +1096,13 @@ namespace FaceFusion.ViewModels
                 newSensor.SkeletonStream.TrackingMode = SkeletonTrackingMode.Seated;
 
                 var smoothParams = new TransformSmoothParameters()
-                    {
-                        Smoothing = 0.8f,
-                        Correction = 0.2f,
-                        Prediction = 0.5f,
-                        JitterRadius = 0.10f,
-                        MaxDeviationRadius = 0.04f
-                    };
+                {
+                    Smoothing = 0.8f,
+                    Correction = 0.2f,
+                    Prediction = 0.5f,
+                    JitterRadius = 0.10f,
+                    MaxDeviationRadius = 0.04f
+                };
 
                 newSensor.SkeletonStream.Enable(smoothParams);
                 newSensor.AllFramesReady += KinectSensorOnAllFramesReady;
@@ -1132,129 +1146,182 @@ namespace FaceFusion.ViewModels
             KinectSensor = null;
         }
 
+        #endregion
+
+        #region Kinect
+
         private void KinectSensorOnAllFramesReady(object sender, AllFramesReadyEventArgs e)
         {
-            bool colorFrameUpdated = false;
-            bool depthFrameUpdated = false;
-            bool skeletonFrameUpdated = false;
+            bool formatChanged = false;
 
-            int depthFrameNumber = 0;
-
-            using (var colorImageFrame = e.OpenColorImageFrame())
+            ColorImageFrame colorImageFrame = null;
+            DepthImageFrame depthImageFrame = null;
+            SkeletonFrame skeletonFrame = null;
+            try
             {
+                colorImageFrame = e.OpenColorImageFrame();
+                depthImageFrame = e.OpenDepthImageFrame();
+
                 if (colorImageFrame != null)
                 {
-
-                    // Make a copy of the color frame for displaying.
-                    var haveNewFormat = _currentColorImageFormat != colorImageFrame.Format;
-                    if (haveNewFormat)
+                    if (_currentKinectFormat.ColorImageFormat != colorImageFrame.Format)
                     {
-                        _colorWidth = colorImageFrame.Width;
-                        _colorHeight = colorImageFrame.Height;
-                        _currentColorImageFormat = colorImageFrame.Format;
-
-                        _colorImageData = new byte[colorImageFrame.PixelDataLength];
-
-                        _colorMappedToDepthPoints = new DepthImagePoint[_colorWidth * _colorHeight];
+                        formatChanged = true;
+                        _currentKinectFormat.ColorImageFormat = colorImageFrame.Format;
                     }
-
-                    colorImageFrame.CopyPixelDataTo(this._colorImageData);
-                    colorFrameUpdated = true;
                 }
-            }
 
-            using (var depthImageFrame = e.OpenDepthImageFrame())
-            {
                 if (depthImageFrame != null)
                 {
-                    depthFrameNumber = depthImageFrame.FrameNumber;
-
-                    // Make a copy of the color frame for displaying.
-                    var haveNewFormat = this._currentDepthImageFormat != depthImageFrame.Format;
-                    if (haveNewFormat)
+                    if (_currentKinectFormat.DepthImageFormat != depthImageFrame.Format)
                     {
-                        this._currentDepthImageFormat = depthImageFrame.Format;
-                        _depthWidth = depthImageFrame.Width;
-                        _depthHeight = depthImageFrame.Height;
+                        formatChanged = true;
 
-                        FaceTrackingVM.DepthWidth = _depthWidth;
-                        FaceTrackingVM.DepthHeight = _depthHeight;
+                        _currentKinectFormat.DepthImageFormat = depthImageFrame.Format;
 
-                        this._depthImagePixels = new DepthImagePixel[depthImageFrame.PixelDataLength];
-                        this._modDepthImagePixels = new DepthImagePixel[depthImageFrame.PixelDataLength];
+                        _fusionWorkItemPool.Format = depthImageFrame.Format;
+
+                        var depthWidth = depthImageFrame.Width;
+                        var depthHeight = depthImageFrame.Height;
+
+                        FaceTrackingVM.DepthWidth = depthWidth;
+                        FaceTrackingVM.DepthHeight = depthHeight;
 
                         this._depthImageData = new byte[depthImageFrame.PixelDataLength * 4];
                         this._modDepthImageData = new byte[depthImageFrame.PixelDataLength * 4];
                         this._mappedColorImageData = new byte[depthImageFrame.PixelDataLength * 4];
 
                         this._depthImageWritableBitmap = new WriteableBitmap(
-                            _depthWidth, _depthHeight, 96, 96, PixelFormats.Bgr32, null);
+                            depthWidth, depthHeight, 96, 96, PixelFormats.Bgr32, null);
 
                         this._modDepthImageWritableBitmap = new WriteableBitmap(
-                            _depthWidth, _depthHeight, 96, 96, PixelFormats.Bgr32, null);
+                            depthWidth, depthHeight, 96, 96, PixelFormats.Bgr32, null);
 
                         _colorImageWritableBitmap = new WriteableBitmap(
-                            _depthWidth, _depthHeight, 96, 96, PixelFormats.Bgr32, null);
+                            depthWidth, depthHeight, 96, 96, PixelFormats.Bgr32, null);
 
                         _residualImageData = new byte[depthImageFrame.PixelDataLength * 4];
                         _residualWritableBitmap = new WriteableBitmap(
-                            _depthWidth, _depthHeight, 96, 96, PixelFormats.Bgr32, null);
+                            depthWidth, depthHeight, 96, 96, PixelFormats.Bgr32, null);
 
                         ResidualImage = _residualWritableBitmap;
-
                         ColorImage = _colorImageWritableBitmap;
-
-                        DepthImage = this._depthImageWritableBitmap;
-                        FusionInputImage = this._modDepthImageWritableBitmap;
+                        DepthImage = _depthImageWritableBitmap;
+                        FusionInputImage = _modDepthImageWritableBitmap;
                     }
 
-                    depthImageFrame.CopyDepthImagePixelDataTo(this._depthImagePixels);
-
-                    depthFrameUpdated = true;
-
                 }
-            }
 
-            using (var skeletonFrame = e.OpenSkeletonFrame())
-            {
+                skeletonFrame = e.OpenSkeletonFrame();
                 if (skeletonFrame != null)
                 {
-                    if (_skeletons == null || _skeletons.Length != skeletonFrame.SkeletonArrayLength)
+                    if (_currentKinectFormat.NumSkeletons != skeletonFrame.SkeletonArrayLength)
                     {
-                        _skeletons = new Skeleton[skeletonFrame.SkeletonArrayLength];
+                        _currentKinectFormat.NumSkeletons = skeletonFrame.SkeletonArrayLength;
+                        formatChanged = true;
                     }
-
-                    skeletonFrame.CopySkeletonDataTo(_skeletons);
-                    skeletonFrameUpdated = true;
                 }
-            }
 
-            if (colorFrameUpdated && depthFrameUpdated && skeletonFrameUpdated)
-            {
-                rawFrameCount++;
-                ProcessSkeletonFrame();
-                ProcessColorFrame();
-                ProcessDepthFrame();
-
-                var skeletonList = new List<Skeleton>();
-                if (_activeSkeleton != null)
+                if (formatChanged)
                 {
-                    skeletonList.Add(_activeSkeleton);
+                    _kinectFrameWorkItemPool.Format = _currentKinectFormat;
                 }
 
-                FaceTrackingVM.TrackFrame(_currentColorImageFormat,
-                                         _colorImageData,
-                                         _currentDepthImageFormat,
-                                         _depthImagePixels,
-                                         skeletonList,
-                                         depthFrameNumber);
+                if (colorImageFrame != null &&
+                    depthImageFrame != null &&
+                    skeletonFrame != null)
+                {
+                    var workItem = _kinectFrameWorkItemPool.Pop();
+
+                    workItem.FrameNumber = depthImageFrame.FrameNumber;
+
+                    colorImageFrame.CopyPixelDataTo(workItem.ColorPixels);
+                    depthImageFrame.CopyDepthImagePixelDataTo(workItem.DepthImagePixels);
+                    skeletonFrame.CopySkeletonDataTo(workItem.Skeletons);
+
+                    var mapper = KinectSensor.CoordinateMapper;
+
+                    mapper.MapColorFrameToDepthFrame(workItem.Format.ColorImageFormat,
+                                                     workItem.Format.DepthImageFormat,
+                                                     workItem.DepthImagePixels,
+                                                     workItem.ColorMappedToDepthPoints);
+
+                    if (_kinectWorkQueue != null)
+                    {
+                        _kinectWorkQueue.AddWork(workItem);
+                    }
+                }
+
             }
+            finally
+            {
+                if (colorImageFrame != null)
+                {
+                    colorImageFrame.Dispose();
+                }
+                if (depthImageFrame != null)
+                {
+                    depthImageFrame.Dispose();
+                }
+                if (skeletonFrame != null)
+                {
+                    skeletonFrame.Dispose();
+                }
+            }
+        }
+
+        private void ReturnKinectFrameWorkItem(KinectFrameWorkItem workItem)
+        {
+            _kinectFrameWorkItemPool.Push(workItem);
+        }
+
+        private void ProcessKinectFrame(KinectFrameWorkItem workItem)
+        {
+            ProcessSkeletonFrame(workItem);
+            ProcessColorFrame(workItem);
+            ProcessDepthFrame(workItem);
+
+            ProcessFusionFrame(workItem.DepthImagePixels);
+            //var skeletonList = new List<Skeleton>();
+            //if (_activeSkeleton != null)
+            //{
+            //    skeletonList.Add(_activeSkeleton);
+            //}
+
+            //FaceTrackingVM.TrackFrame(DefaultColorImageFormat,
+            //                         _colorImageData,
+            //                         DefaultDepthImageFormat,
+            //                         _depthImagePixels,
+            //                         skeletonList,
+            //                         workItem.FrameNumber);
+
+            rawFrameCount++;
+
+            _kinectFrameWorkItemPool.Push(workItem);
+
+            _syncContext.Post((SendOrPostCallback)UpdateKinectFrameUI, null);
+        }
+
+        private void UpdateKinectFrameUI(object state)
+        {
+            _depthImageWritableBitmap.WritePixels(
+                new Int32Rect(0, 0, _depthImageWritableBitmap.PixelWidth, _depthImageWritableBitmap.PixelHeight),
+                _depthImageData,
+                _depthImageWritableBitmap.PixelWidth * 4,
+                0);
+
+            _colorImageWritableBitmap.WritePixels(
+                new Int32Rect(0, 0, _colorImageWritableBitmap.PixelWidth, _colorImageWritableBitmap.PixelHeight),
+                _mappedColorImageData,
+                _colorImageWritableBitmap.PixelWidth * 4,
+                0);
+
             CheckFPS();
         }
 
-        private void ProcessSkeletonFrame()
+        private void ProcessSkeletonFrame(KinectFrameWorkItem workItem)
         {
-            var skeletonList = _skeletons.ToList();
+            var skeletonList = workItem.Skeletons.ToList();
             var closestSkeleton = skeletonList.Where(s => s.TrackingState == SkeletonTrackingState.Tracked)
                                               .OrderBy(s => s.Position.Z * Math.Abs(s.Position.X))
                                               .FirstOrDefault();
@@ -1296,17 +1363,18 @@ namespace FaceFusion.ViewModels
             }
         }
 
-        private unsafe void ProcessDepthFrame()
+        private unsafe void ProcessDepthFrame(KinectFrameWorkItem workItem)
         {
-            int width = _depthWidth;
-            int height = _depthHeight;
+            var depthSize = FormatHelper.GetDepthSize(workItem.Format.DepthImageFormat);
+            int width = (int)depthSize.Width;
+            int height = (int)depthSize.Height;
 
             double maxDepth = 4000;
             double minDepth = 400;
 
             fixed (byte* depthPtrFixed = _depthImageData)
             {
-                fixed (DepthImagePixel* pixelPtrFixed = _depthImagePixels)
+                fixed (DepthImagePixel* pixelPtrFixed = workItem.DepthImagePixels)
                 {
                     int* depthIntPtr = (int*)depthPtrFixed;
                     DepthImagePixel* pixelPtr = pixelPtrFixed;
@@ -1320,7 +1388,6 @@ namespace FaceFusion.ViewModels
                             int srcIndex = (width - 1 - x) + y * width;
                             int targetIndex = x + y * width;
 
-                            //var dip = _depthImagePixels[srcIndex];
                             var dip = *(pixelPtr + srcIndex);
 
                             short depth = dip.Depth;
@@ -1342,16 +1409,10 @@ namespace FaceFusion.ViewModels
                     }
                 }
             }
-
-            _depthImageWritableBitmap.WritePixels(
-                new Int32Rect(0, 0, width, height),
-                _depthImageData,
-                width * 4,
-                0);
-
-            ProcessFusionFrame(_depthImagePixels);
         }
 
+        #region Old
+        /*
         private unsafe void ProcessDepthFrameMod()
         {
             int width = _depthWidth;
@@ -1380,16 +1441,16 @@ namespace FaceFusion.ViewModels
             //    if (headJoint.TrackingState == JointTrackingState.Tracked &&
             //        neckJoint.TrackingState == JointTrackingState.Tracked)
             //    {
-            //        var headPoint = mapper.MapSkeletonPointToDepthPoint(headJoint.Position, _currentDepthImageFormat);
+            //        var headPoint = mapper.MapSkeletonPointToDepthPoint(headJoint.Position, DefaultDepthImageFormat);
             //        var pos = new SkeletonPoint()
             //            {
             //                X = headJoint.Position.X,
             //                Y = headJoint.Position.Y - 0.200f,
             //                Z = headJoint.Position.Z
             //            };
-            //        var neckPoint = mapper.MapSkeletonPointToDepthPoint(pos, _currentDepthImageFormat);
+            //        var neckPoint = mapper.MapSkeletonPointToDepthPoint(pos, DefaultDepthImageFormat);
 
-            //        hx = _depthWidth - headPoint.X;
+            //        hx = depthWidth - headPoint.X;
             //        hy = headPoint.Y;
             //        hzMax = headPoint.Depth + headDepthThreshold;
             //        hzMin = headPoint.Depth - headDepthThreshold;
@@ -1496,57 +1557,61 @@ namespace FaceFusion.ViewModels
             //}
             ProcessFusionFrame((DepthImagePixel[])_depthImagePixels.Clone());
         }
+        */
+        #endregion
 
-        private unsafe void ProcessColorFrame()
+        private unsafe void ProcessColorFrame(KinectFrameWorkItem workItem)
         {
-            int colorWidth = _colorWidth;
-            int colorHeight = _colorHeight;
-            int depthWidth = _depthWidth;
-            int depthHeight = _depthHeight;
+            var depthSize = FormatHelper.GetDepthSize(workItem.Format.DepthImageFormat);
+            var colorSize = FormatHelper.GetColorSize(workItem.Format.ColorImageFormat);
 
-            var mapper = KinectSensor.CoordinateMapper;
-
-            //mapper.MapDepthFrameToColorFrame(_currentDepthImageFormat, _depthImagePixels, _currentColorImageFormat, _colorMappedToDepthPoints);
-            mapper.MapColorFrameToDepthFrame(_currentColorImageFormat, _currentDepthImageFormat, _depthImagePixels, _colorMappedToDepthPoints);
+            int colorWidth = (int)colorSize.Width;
+            int colorHeight = (int)colorSize.Height;
+            int depthWidth = (int)depthSize.Width;
+            int depthHeight = (int)depthSize.Height;
 
             Array.Clear(_mappedColorImageData, 0, _mappedColorImageData.Length);
 
-            fixed (byte* colorPtrFixed = _colorImageData, mappedColorPtrFixed = _mappedColorImageData)
+            var map = workItem.ColorMappedToDepthPoints;
+
+            int depthWidthMinusOne = depthWidth - 1;
+
+            fixed (byte* colorPtrFixed = workItem.ColorPixels, mappedColorPtrFixed = _mappedColorImageData)
             {
-                int* colorIntPtr = (int*)colorPtrFixed;
-                int* mappedColorIntPtr = (int*)mappedColorPtrFixed;
-
-                for (int y = 0; y < colorHeight; y += 1)
+                fixed (DepthImagePoint* mapPtrFixed = workItem.ColorMappedToDepthPoints)
                 {
-                    for (int x = 0; x < colorWidth; x += 1)
+                    int* colorIntPtr = (int*)colorPtrFixed;
+                    int* mappedColorIntPtr = (int*)mappedColorPtrFixed;
+                    DepthImagePoint* mapPtr = mapPtrFixed;
+
+                    //for (int y = 0; y < colorHeight; y += 1)
+                    //{
+                    //    for (int x = 0; x < colorWidth; x += 1)
+                    //    {
+                    //        int srcIndex = x + y * colorWidth;
+                    int len = colorWidth * colorHeight;
+                    for (int i = 0; i < len; i++)
                     {
-                        int srcIndex = x + y * colorWidth;
-                        //int depthIndex = (depthWidth - 1 - x) + y * depthWidth;
+                        var coord = *mapPtr;
 
-                        //bool isKnownDepth = _depthImagePixels[depthIndex].IsKnownDepth;
-
-                        //if (!isKnownDepth)
-                        //    continue;
-
-                        var coord = _colorMappedToDepthPoints[srcIndex];
                         int cx = coord.X;
                         int cy = coord.Y;
                         if (cx >= 0 && cx < depthWidth &&
                             cy >= 0 && cy < depthHeight)
                         {
-                            int targetIndex = (depthWidth - 1 - cx) + cy * depthWidth;
+                            int targetIndex = (depthWidthMinusOne - cx) + cy * depthWidth;
 
-                            *(mappedColorIntPtr + targetIndex) = *(colorIntPtr + srcIndex);
+                            *(mappedColorIntPtr + targetIndex) = *(colorIntPtr);
                         }
+
+                        mapPtr++;
+                        colorIntPtr++;
                     }
+                    //    }
+                    //}
                 }
             }
 
-            _colorImageWritableBitmap.WritePixels(
-                new Int32Rect(0, 0, _depthWidth, _depthHeight),
-                _mappedColorImageData,
-                _depthWidth * 4,
-                0);
         }
 
         void elevationTimer_Tick(object sender, EventArgs e)
@@ -1715,8 +1780,7 @@ namespace FaceFusion.ViewModels
 
         private void ProcessFusionFrame(DepthImagePixel[] depthPixels)
         {
-
-            var workItem = _fusionDepthPool.Pop();
+            var workItem = _fusionWorkItemPool.Pop();
 
             if (workItem == null)
             {
@@ -1751,9 +1815,9 @@ namespace FaceFusion.ViewModels
             this.AlignmentEnergyString = "Alignment Energy: " + _alignmentEnergy.ToString("F6");
         }
 
-        private void ReturnUnusedWorkItem(FusionWorkItem workItem)
+        private void ReturnFusionWorkItem(FusionWorkItem workItem)
         {
-            _fusionDepthPool.Push(workItem);
+            _fusionWorkItemPool.Push(workItem);
         }
 
         /// <summary>
@@ -1778,7 +1842,7 @@ namespace FaceFusion.ViewModels
                 // The input frame was processed successfully, increase the processed frame count
                 ++this.processedFrameCount;
 
-                _fusionDepthPool.Push(workItem);
+                _fusionWorkItemPool.Push(workItem);
 
                 _syncContext.Post((SendOrPostCallback)FusionUpdateUI, trackingSucceeded);
                 //return trackingSucceeded;

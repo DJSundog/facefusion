@@ -16,19 +16,23 @@ namespace FaceFusion.ViewModels
 
     class KinectFrameWorkItem : PoolItem<KinectFormat>
     {
-        public DepthImagePixel[] DepthPixels { get; private set; }
+        public DepthImagePixel[] DepthImagePixels { get; private set; }
         public byte[] ColorPixels { get; private set; }
         public Skeleton[] Skeletons { get; private set; }
+        public int FrameNumber { get; set; }
+
+        public DepthImagePoint[] ColorMappedToDepthPoints { get; private set; }
 
         public KinectFrameWorkItem(KinectFormat format, 
-                                   DepthImagePixel[] depthPixels,
+                                   DepthImagePixel[] depthImagePixels,
                                    byte[] colorPixels,
-                                   Skeleton[] skeletons)
+                                   Skeleton[] skeletons,
+                                   DepthImagePoint[] colorMappedToDepthPoints)
             : base(format)
         {
-            if (depthPixels == null)
+            if (depthImagePixels == null)
             {
-                throw new ArgumentNullException("depthPixels");
+                throw new ArgumentNullException("depthImagePixels");
             }
             if (colorPixels == null)
             {
@@ -38,9 +42,15 @@ namespace FaceFusion.ViewModels
             {
                 throw new ArgumentNullException("skeletons");
             }
-            this.DepthPixels = depthPixels;
+            if (colorMappedToDepthPoints == null)
+            {
+                throw new ArgumentNullException("colorMappedToDepthPoints");
+            }
+
+            this.DepthImagePixels = depthImagePixels;
             this.ColorPixels = colorPixels;
             this.Skeletons = skeletons;
+            this.ColorMappedToDepthPoints = colorMappedToDepthPoints;
         }
 
         public static KinectFrameWorkItem Create(KinectFormat format)
@@ -50,11 +60,14 @@ namespace FaceFusion.ViewModels
 
             var depthPixels = new DepthImagePixel[(int)(depthSize.Width * depthSize.Height)];
             
-            var colorPixels = new byte[(int)(colorSize.Width * colorSize.Height * 4)];
+            int colorLen = (int)(colorSize.Width * colorSize.Height);
+            var colorPixels = new byte[colorLen * 4];
 
             var skeletons = new Skeleton[format.NumSkeletons];
 
-            return new KinectFrameWorkItem(format, depthPixels, colorPixels, skeletons);
+            var colorMappedToDepthPoints = new DepthImagePoint[colorLen];
+
+            return new KinectFrameWorkItem(format, depthPixels, colorPixels, skeletons, colorMappedToDepthPoints);
         }
     }
 }

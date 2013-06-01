@@ -10,10 +10,10 @@ namespace FaceFusion.ViewModels
     static class FormatHelper
     {
         /// <summary>
-        /// Get the depth image size from the input depth image format.
+        /// Get the depth image size from the input depth image _currentKinectFormat.
         /// </summary>
-        /// <param name="imageFormat">The depth image format.</param>
-        /// <returns>The width and height of the input depth image format.</returns>
+        /// <param name="imageFormat">The depth image _currentKinectFormat.</param>
+        /// <returns>The width and height of the input depth image _currentKinectFormat.</returns>
         public static Size GetColorSize(ColorImageFormat imageFormat)
         {
             switch (imageFormat)
@@ -28,16 +28,19 @@ namespace FaceFusion.ViewModels
                 case ColorImageFormat.RawBayerResolution1280x960Fps12:
                 case ColorImageFormat.RgbResolution1280x960Fps12:
                     return new Size(1280, 960);
+
+                case ColorImageFormat.Undefined:
+                    return new Size(0, 0);
             }
 
             throw new ArgumentOutOfRangeException("imageFormat");
         }
 
         /// <summary>
-        /// Get the depth image size from the input depth image format.
+        /// Get the depth image size from the input depth image _currentKinectFormat.
         /// </summary>
-        /// <param name="imageFormat">The depth image format.</param>
-        /// <returns>The width and height of the input depth image format.</returns>
+        /// <param name="imageFormat">The depth image _currentKinectFormat.</param>
+        /// <returns>The width and height of the input depth image _currentKinectFormat.</returns>
         public static Size GetDepthSize(DepthImageFormat imageFormat)
         {
             switch (imageFormat)
@@ -50,6 +53,8 @@ namespace FaceFusion.ViewModels
 
                 case DepthImageFormat.Resolution80x60Fps30:
                     return new Size(80, 60);
+                case DepthImageFormat.Undefined:
+                    return new Size(0, 0);
             }
 
             throw new ArgumentOutOfRangeException("imageFormat");
