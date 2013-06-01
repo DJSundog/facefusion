@@ -277,13 +277,7 @@ namespace FaceFusion
             var neckJoint = skeletonOfInterest.Joints[JointType.ShoulderCenter];
 
             _headPoint = mapper.MapSkeletonPointToDepthPoint(headJoint.Position, depthImageFormat);
-            var pos = new SkeletonPoint()
-                {
-                    X = headJoint.Position.X,
-                    Y = headJoint.Position.Y - 0.200f,
-                    Z = headJoint.Position.Z
-                };
-            _neckPoint = mapper.MapSkeletonPointToDepthPoint(pos, depthImageFormat);
+            _neckPoint = mapper.MapSkeletonPointToDepthPoint(neckJoint.Position, depthImageFormat);
 
             _headPoint.X = depthWidth - _headPoint.X;
             _neckPoint.X = depthWidth - _neckPoint.X;

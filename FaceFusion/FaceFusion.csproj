@@ -116,6 +116,7 @@
     <Compile Include="ViewModels\FormatHelper.cs" />
     <Compile Include="ViewModels\FusionWorkItem.cs" />
     <Compile Include="ViewModels\KinectFrameWorkItem.cs" />
+    <Compile Include="ViewModels\SkeletonJointViewModel.cs" />
     <Compile Include="Views\FaceTrackingView.xaml.cs">
       <DependentUpon>FaceTrackingView.xaml</DependentUpon>
     </Compile>
@@ -129,6 +130,9 @@
     </Compile>
     <Compile Include="Views\ImageView.xaml.cs">
       <DependentUpon>ImageView.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\SkeletonJointView.xaml.cs">
+      <DependentUpon>SkeletonJointView.xaml</DependentUpon>
     </Compile>
     <Page Include="Views\FaceTrackingView.xaml">
       <SubType>Designer</SubType>
@@ -156,6 +160,10 @@
       <Generator>MSBuild:Compile</Generator>
     </Page>
     <Page Include="Views\ImageView.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Views\SkeletonJointView.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>

@@ -245,6 +245,42 @@ namespace FaceFusion.ViewModels
 
         #endregion
 
+        #region SkeletonJointVM
+
+        /// <summary>
+        /// The <see cref="SkeletonJointVM" /> property's name.
+        /// </summary>
+        public const string SkeletonJointVMPropertyName = "SkeletonJointVM";
+
+        private SkeletonJointViewModel _skeletonJointVM = new SkeletonJointViewModel();
+
+        /// <summary>
+        /// Gets the SkeletonJointVM property.
+        /// </summary>
+        public SkeletonJointViewModel SkeletonJointVM
+        {
+            get
+            {
+                return _skeletonJointVM;
+            }
+
+            set
+            {
+                if (_skeletonJointVM == value)
+                {
+                    return;
+                }
+
+                var oldValue = _skeletonJointVM;
+                _skeletonJointVM = value;
+
+                // Update bindings, no broadcast
+                RaisePropertyChanged(SkeletonJointVMPropertyName);
+            }
+        }
+
+        #endregion
+
         #region UserFusionOnly
 
         /// <summary>
@@ -1316,6 +1352,8 @@ namespace FaceFusion.ViewModels
                 _colorImageWritableBitmap.PixelWidth * 4,
                 0);
 
+            SkeletonJointVM.ProcessFrame(KinectSensor.CoordinateMapper, _activeSkeleton, _currentKinectFormat.DepthImageFormat);
+
             CheckFPS();
         }
 
@@ -1352,9 +1390,11 @@ namespace FaceFusion.ViewModels
 
 
                 var headJoint = closestSkeleton.Joints[JointType.Head];
-                _volumeCenter.X = headJoint.Position.X;
-                _volumeCenter.Y = headJoint.Position.Y;
-                _volumeCenter.Z = headJoint.Position.Z;
+                var neckJoint = closestSkeleton.Joints[JointType.ShoulderCenter];
+                float headFraction = 0.85f;
+                _volumeCenter.X = (headJoint.Position.X * headFraction) + (neckJoint.Position.X) * (1.0f - headFraction);
+                _volumeCenter.Y = (headJoint.Position.Y * headFraction) + (neckJoint.Position.Y) * (1.0f - headFraction);
+                _volumeCenter.Z = (headJoint.Position.Z * headFraction) + (neckJoint.Position.Z) * (1.0f - headFraction);
             }
 
             if (newSkeleton)
@@ -1837,7 +1877,7 @@ namespace FaceFusion.ViewModels
 
                 if (processedFrameCount % 2 == 0)
                 {
-                    FusionRender();
+                    RenderFusion();
                 }
                 // The input frame was processed successfully, increase the processed frame count
                 ++this.processedFrameCount;
@@ -1919,7 +1959,7 @@ namespace FaceFusion.ViewModels
             return trackingSucceeded;
         }
 
-        private void FusionRender()
+        private void RenderFusion()
         {
             Matrix3D m = Matrix3D.Identity;
             m = worldToCameraTransform.ToMatrix3D();
@@ -1927,16 +1967,16 @@ namespace FaceFusion.ViewModels
             _currentRotationDegrees += _rotationRateInDegrees;
 
             double zSize = VoxelResolutionZ / (double)VoxelsPerMeter;
-            m.Translate(new Vector3D(0,
-                                     0,
+            m.Translate(new Vector3D(_currentVolumeCenter.X,
+                                     _currentVolumeCenter.Y,
                                      -_currentVolumeCenter.Z));
             m.Rotate(new Quaternion(new Vector3D(0, 1, 0), _currentRotationDegrees));
 
             double zDelta = _volumeCenter.Z - _currentVolumeCenter.Z;
 
-            m.Translate(new Vector3D(_currentVolumeCenter.X,
-                                    _currentVolumeCenter.Y,
-                                    2.0 * zSize));
+            m.Translate(new Vector3D(0,
+                                    0,
+                                    1.75 * zSize));
 
 
             //m.Translate(new Vector3D(0 * VoxelsPerMeter,
