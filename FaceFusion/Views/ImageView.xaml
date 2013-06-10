@@ -23,7 +23,9 @@
             </Grid.RowDefinitions>
             <Grid Grid.Column="0"
                   Grid.Row="0">
-                <Image Source="{Binding ColorImage}" />
+                <Image Source="{Binding FusionManager.ResidualImage}" />
+                <Image Source="{Binding ColorImage}"
+                       Visibility="{Binding ShowRGBOverlay, Converter={StaticResource BooleanToVisibility}}" />
             </Grid>
             <Grid Grid.Column="0"
                   Grid.Row="2">
@@ -32,8 +34,8 @@
                 <!--<Image Source="{Binding ColorImage}"
                        Visibility="{Binding ShowRGBOverlay, Converter={StaticResource BooleanToVisibility}}"
                        Opacity="0.5" />-->
-                <Image Source="{Binding FusionInputImage}"
-                       Opacity="0.5" />
+                <!--<Image Source="{Binding FusionInputImage}"
+                       Opacity="0.5" />-->
                 <views:SkeletonJointView DataContext="{Binding SkeletonJointVM}"
                                          Width="{Binding ActualWidth, ElementName=depthImage}"
                                          Height="{Binding actualHeight, ElementName=depthImage}" />
@@ -49,24 +51,17 @@
                   Grid.Row="0"
                   Grid.ColumnSpan="3"
                   Grid.RowSpan="3">
-                <Image Source="{Binding FusionOutputImage}" />
+                <Image Source="{Binding FusionManager.FusionOutputImage}" />
                 <Image Source="{Binding ColorImage}"
                        Visibility="{Binding ShowRGBOverlay, Converter={StaticResource BooleanToVisibility}}"
                        Opacity="1.0" />
-                <Image Source="{Binding FusionOutputImage}"
+                <Image Source="{Binding FusionManager.FusionOutputImage}"
                        Opacity="0.5"
                        Visibility="{Binding ShowRGBOverlay, Converter={StaticResource BooleanToVisibility}}" />
             </Grid>
             <Grid Grid.Column="4"
                   Grid.Row="0">
-                <!--<Image Source="{Binding ResidualImage}" />-->
-            </Grid>
-            <Grid Grid.Column="4"
-                  Grid.Row="2">
-                <!--<Image Source="{Binding Fusion2OutputImage}" />
-                <Image Source="{Binding ColorImage}"
-                       Visibility="{Binding ShowRGBOverlay, Converter={StaticResource BooleanToVisibility}}"
-                       Opacity="0.7" />-->
+                <!--<Image Source="{Binding FusionManager.ResidualImage}" />-->
             </Grid>
         </Grid>
     </Viewbox>

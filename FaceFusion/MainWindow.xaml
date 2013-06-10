@@ -149,10 +149,20 @@
                    HorizontalAlignment="Right"
                    Foreground="{StaticResource MediumGreyBrush}"
                    FontFamily="Segoe UI"
+                   FontWeight="Bold"
                    FontSize="18">Face Fusion</TextBlock>
         <t:KinectSensorChooserUI KinectSensorChooser="{Binding KinectSensorChooser}"
                                  HorizontalAlignment="Center"
+                                 IsListening="{Binding IsListening}"
                                  Grid.Row="0" />
+        <TextBlock Grid.Row="0"
+                   VerticalAlignment="Top"
+                   HorizontalAlignment="Left"
+                   Foreground="{StaticResource MediumGreyBrush}"
+                   FontFamily="Segoe UI"
+                   FontSize="18"
+                   FontWeight="Bold"
+                   Text="{Binding VoiceHeard}"/>
         <views:ImageView Grid.Row="1" />
         <views:FusionControlView Grid.Row="2" />
         <StatusBar Grid.Row="3"
@@ -162,7 +172,13 @@
                    Background="White"
                    Foreground="{StaticResource MediumGreyBrush}">
             <StatusBarItem Padding="0 0 0 10">
-                <TextBlock Text="{Binding StatusMessage}" />
+                <TextBlock Text="{Binding StatusMessage}"
+                           FontSize="18" />
+            </StatusBarItem>
+            <StatusBarItem Padding="0 0 0 10">
+                <TextBlock Text="{Binding FusionManager.FusionStatusMessage}"
+                           FontSize="18"
+                           Margin="30,0,0,0"/>
             </StatusBarItem>
         </StatusBar>
     </Grid>

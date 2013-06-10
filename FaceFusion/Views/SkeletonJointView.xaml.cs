@@ -46,8 +46,7 @@ namespace FaceFusion.Views
 
             if (ViewModel == null)
                 return;
-
-
+    
             var pen = new Pen(Brushes.Blue, 2.0);
 
             foreach (var joint in ViewModel.Joints)

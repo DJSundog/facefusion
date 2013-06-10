@@ -7,14 +7,14 @@ using Microsoft.Kinect;
 
 namespace FaceFusion.ViewModels
 {
-    struct KinectFormat
+    public struct KinectFormat
     {
         public DepthImageFormat DepthImageFormat;
         public ColorImageFormat ColorImageFormat;
         public int NumSkeletons;
     }
 
-    class KinectFrameWorkItem : PoolItem<KinectFormat>
+    public class KinectFrameWorkItem : PoolItem<KinectFormat>
     {
         public DepthImagePixel[] DepthImagePixels { get; private set; }
         public byte[] ColorPixels { get; private set; }

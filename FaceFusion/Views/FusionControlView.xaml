@@ -9,37 +9,39 @@
     <Grid>
         <StackPanel>
             <StackPanel Orientation="Horizontal">
-                <Button Content="Start"
-                        Width="100"
-                        Margin="5"
-                        Command="{Binding StartCommand}" />
-                <Button Content="Pause"
-                        Width="100"
-                        Margin="5"
-                        Command="{Binding PauseCommand}" />
                 <Button Content="Reset"
                         Width="100"
                         Margin="5"
+                        FontSize="16"
                         Command="{Binding ResetCommand}" />
+                <Button Content="Export"
+                        Width="100"
+                        Margin="5"
+                        FontSize="16"
+                        Command="{Binding ExportCommand}" />
+                <CheckBox Content="Pause Integration"
+                          IsChecked="{Binding FusionManager.IsIntegrationPaused}"
+                          FontSize="16"
+                          Margin="5" />
                 <CheckBox Content="Show RGB Overlays"
+                          FontSize="16"
                           IsChecked="{Binding ShowRGBOverlay}"
                           Margin="5" />
                 <CheckBox Content="Track Model"
-                          IsChecked="{Binding IsTrackingModel}"
-                          Margin="5" />
-                <CheckBox Content="Pause Integration"
-                          IsChecked="{Binding IsIntegrationPaused}"
+                          FontSize="16"
+                          IsChecked="{Binding FusionManager.IsTrackingModel}"
                           Margin="5" />
                 <CheckBox Content="User Fusion Only"
+                          FontSize="16"
                           IsChecked="{Binding UserFusionOnly}"
                           Margin="5" />
             </StackPanel>
             <StackPanel Orientation="Horizontal">
                 <CheckBox Content="Is Tracking"
                           IsEnabled="False"
-                          IsChecked="{Binding IsTracking}"
+                          IsChecked="{Binding FusionManager.IsTracking}"
                           Margin="5" />
-                <TextBlock Text="{Binding AlignmentEnergyString}"
+                <TextBlock Text="{Binding FusionManager.AlignmentEnergyString}"
                            Margin="5" />
             </StackPanel>
             <StackPanel Orientation="Horizontal">
@@ -53,16 +55,15 @@
                 <TextBlock Text="27" />
             </StackPanel>
             <StackPanel Orientation="Horizontal">
-                <TextBlock Text="ZOffset: 0.35m" />
-                <Slider Minimum="0.35"
-                        Maximum="2"
+                <TextBlock Text="Head-neck offset: 0.0" />
+                <Slider Minimum="0.0"
+                        Maximum="1.0"
                         SmallChange="0.05"
                         LargeChange="0.1"
-                        x:Name="sliderZ"
-                        Value="{Binding ZOffset, NotifyOnSourceUpdated=True}"
+                        Value="{Binding HeadNeckOffset, NotifyOnSourceUpdated=True}"
                         Width="200" />
-                <TextBlock Text="2.0m   " />
-                <TextBlock Text="{Binding ZOffset}" />
+                <TextBlock Text="1.0   " />
+                <TextBlock Text="{Binding HeadNeckOffset}" />
             </StackPanel>
 
         </StackPanel>
