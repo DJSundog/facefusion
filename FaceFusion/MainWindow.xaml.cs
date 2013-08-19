@@ -1,23 +1,17 @@
-﻿//------------------------------------------------------------------------------
-// <copyright file="MainWindow.xaml.cs" company="Microsoft">
-//     Copyright (updateMatrix) Microsoft Corporation.  All rights reserved.
-// </copyright>
-//------------------------------------------------------------------------------
+﻿/*
+ * This file is part of the Face Fusion project. 
+ *
+ * Copyright (c) 2013 Joshua Blake
+ *
+ * This code is licensed to you under the terms of the MIT license.
+ * See https://facefusion.codeplex.com/license for a copy of the license.
+ */
+
+using System.Windows;
+using FaceFusion.ViewModels;
 
 namespace FaceFusion
 {
-    using System;
-    using System.Diagnostics;
-    using System.IO;
-    using System.Windows;
-    using System.Windows.Media;
-    using System.Windows.Media.Imaging;
-    using System.Windows.Threading;
-    using Microsoft.Kinect;
-    using Microsoft.Kinect.Toolkit.Fusion;
-using FaceFusion.ViewModels;
-using System.Windows.Controls;
-
     /// <summary>
     /// Interaction logic for MainWindow.xaml
     /// </summary>

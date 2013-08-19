@@ -1,23 +1,26 @@
-﻿using GalaSoft.MvvmLight;
-using GalaSoft.MvvmLight.Command;
-using System.Windows.Threading;
+﻿/*
+ * This file is part of the Face Fusion project. 
+ *
+ * Copyright (c) 2013 Joshua Blake
+ *
+ * This code is licensed to you under the terms of the MIT license.
+ * See https://facefusion.codeplex.com/license for a copy of the license.
+ */
+
 using System;
 using System.Linq;
-using System.Collections.ObjectModel;
-using Microsoft.Kinect;
-using Microsoft.Kinect.Toolkit;
-using RelayCommand = GalaSoft.MvvmLight.Command.RelayCommand;
+using System.Threading;
+using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using System.Windows;
-using Microsoft.Kinect.Toolkit.Fusion;
-using System.ComponentModel;
-using System.Diagnostics;
-using System.Collections.Generic;
+using System.Windows.Threading;
 using Blake.NUI.WPF.Utility;
-using System.Windows.Media.Media3D;
-using System.Threading;
-using System.Runtime.InteropServices;
+using FaceFusion.Services;
+using GalaSoft.MvvmLight;
+using Microsoft.Kinect;
+using Microsoft.Kinect.Toolkit;
+using Microsoft.Kinect.Toolkit.Fusion;
+using RelayCommand = GalaSoft.MvvmLight.Command.RelayCommand;
 
 namespace FaceFusion.ViewModels
 {
@@ -875,7 +878,7 @@ namespace FaceFusion.ViewModels
                     FusionManager = null;
                 }
 
-                FusionManager = new ViewModels.FusionManager(KinectSensor);
+                FusionManager = new FusionManager(KinectSensor);
             }
             catch (InvalidOperationException)
             {

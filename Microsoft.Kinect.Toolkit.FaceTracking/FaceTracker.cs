@@ -4,6 +4,8 @@
 // </copyright>
 // --------------------------------------------------------------------------------------------------------------------
 
+//JB 6/1/2013 Cached coordinate mapper and saved to mapper field on initialization. Helped with an initialization race condition.
+
 namespace Microsoft.Kinect.Toolkit.FaceTracking
 {
     using System;

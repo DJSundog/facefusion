@@ -1,7 +1,16 @@
-﻿using System;
-using System.Linq;
-using GalaSoft.MvvmLight;
+﻿/*
+ * This file is part of the Face Fusion project. 
+ *
+ * Copyright (c) 2013 Joshua Blake
+ *
+ * This code is licensed to you under the terms of the MIT license.
+ * See https://facefusion.codeplex.com/license for a copy of the license.
+ */
+
+using System;
 using System.Collections.ObjectModel;
+using FaceFusion.Services;
+using GalaSoft.MvvmLight;
 using Microsoft.Kinect;
 
 namespace FaceFusion.ViewModels

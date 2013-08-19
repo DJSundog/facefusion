@@ -1,8 +1,11 @@
-﻿//------------------------------------------------------------------------------
-// <copyright file="App.xaml.cs" company="Microsoft">
-//     Copyright (updateMatrix) Microsoft Corporation.  All rights reserved.
-// </copyright>
-//------------------------------------------------------------------------------
+﻿/*
+ * This file is part of the Face Fusion project. 
+ *
+ * Copyright (c) 2013 Joshua Blake
+ *
+ * This code is licensed to you under the terms of the MIT license.
+ * See https://facefusion.codeplex.com/license for a copy of the license.
+ */
 
 namespace FaceFusion
 {

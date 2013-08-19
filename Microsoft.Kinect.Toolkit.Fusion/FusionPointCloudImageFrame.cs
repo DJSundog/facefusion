@@ -67,6 +67,7 @@ namespace Microsoft.Kinect.Toolkit.Fusion
             this.LockFrameAndExecute((Action<IntPtr>)(
                 (dest) =>
                 {
+                    //JB 6/1/2013 Fixed length calculation per v1.7 known issue notes http://msdn.microsoft.com/en-us/library/dn188692.aspx
                     Marshal.Copy(sourcePixelData, 0, dest, this.PixelDataLength * this.BytesPerPixel / sizeof(float));
                 }));
         }
@@ -93,6 +94,7 @@ namespace Microsoft.Kinect.Toolkit.Fusion
             this.LockFrameAndExecute((Action<IntPtr>)(
                 (src) =>
                 {
+                    //JB 6/1/2013 Fixed length calculation per v1.7 known issue notes http://msdn.microsoft.com/en-us/library/dn188692.aspx
                     Marshal.Copy(src, destinationPixelData, 0, this.PixelDataLength * this.BytesPerPixel / sizeof(float));
                 }));
         }

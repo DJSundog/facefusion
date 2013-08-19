@@ -1,11 +1,18 @@
-﻿using System;
+﻿/*
+ * This file is part of the Face Fusion project. 
+ *
+ * Copyright (c) 2013 Joshua Blake
+ *
+ * This code is licensed to you under the terms of the MIT license.
+ * See https://facefusion.codeplex.com/license for a copy of the license.
+ */
+
+using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using GalaSoft.MvvmLight;
 using System.Collections.ObjectModel;
+using GalaSoft.MvvmLight;
 using Microsoft.Kinect;
-using System.ComponentModel;
+using FaceFusion.Services;
 
 namespace FaceFusion.ViewModels
 {
@@ -153,7 +160,6 @@ namespace FaceFusion.ViewModels
 
         public void TrackFrame(ColorImageFormat colorImageFormat, byte[] colorImage, DepthImageFormat depthImageFormat, DepthImagePixel[] depthImage, IEnumerable<Skeleton> skeletons, int frameNumber)
         {
-
             if (_currentColorImageFormat != colorImageFormat)
             {
                 _currentColorImageFormat = colorImageFormat;
@@ -199,7 +205,6 @@ namespace FaceFusion.ViewModels
                 this.RemoveTracker(trackingId);
             }
         }
-
 
         #endregion
 

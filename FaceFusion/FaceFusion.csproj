@@ -79,24 +79,24 @@
     <CodeAnalysisFailOnMissingRules>false</CodeAnalysisFailOnMissingRules>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Blake.NUI.WPF">
+    <Reference Include="Blake.NUI.WPF, Version=0.2.0.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\external\Blake.NUI.WPF.dll</HintPath>
     </Reference>
-    <Reference Include="GalaSoft.MvvmLight.Extras.WPF4">
-      <HintPath>..\external\GalaSoft.MvvmLight.Extras.WPF4.dll</HintPath>
+    <Reference Include="GalaSoft.MvvmLight.Extras.WPF4, Version=4.0.23.37706, Culture=neutral, PublicKeyToken=1673db7d5906b0ad, processorArchitecture=MSIL">
+      <HintPath>..\external\MvvmLight\GalaSoft.MvvmLight.Extras.WPF4.dll</HintPath>
     </Reference>
-    <Reference Include="GalaSoft.MvvmLight.WPF4">
-      <HintPath>..\external\GalaSoft.MvvmLight.WPF4.dll</HintPath>
+    <Reference Include="GalaSoft.MvvmLight.WPF4, Version=4.0.23.37706, Culture=neutral, PublicKeyToken=63eb5c012e0b3c1c, processorArchitecture=MSIL">
+      <HintPath>..\external\MvvmLight\GalaSoft.MvvmLight.WPF4.dll</HintPath>
     </Reference>
     <Reference Include="Microsoft.Kinect">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>$(KINECTSDK10_DIR)\Assemblies\Microsoft.Kinect.dll</HintPath>
     </Reference>
     <Reference Include="Microsoft.Speech, Version=11.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL" />
-    <Reference Include="NAudio">
+    <Reference Include="NAudio, Version=1.6.0.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\external\NAudio\NAudio.dll</HintPath>
     </Reference>
-    <Reference Include="NAudio.WindowsMediaFormat">
+    <Reference Include="NAudio.WindowsMediaFormat, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\external\NAudio\NAudio.WindowsMediaFormat.dll</HintPath>
     </Reference>
     <Reference Include="System" />
@@ -118,22 +118,19 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
-    <Compile Include="Audio.cs" />
-    <Compile Include="MatrixExtensions.cs" />
-    <Compile Include="ViewModels\AudioManager.cs" />
+    <Compile Include="Services\Audio.cs" />
+    <Compile Include="Extensions\MatrixExtensions.cs" />
+    <Compile Include="Services\AudioManager.cs" />
     <Compile Include="ViewModels\FaceTrackingViewModel.cs" />
-    <Compile Include="ViewModels\FormatHelper.cs" />
-    <Compile Include="ViewModels\FusionManager.cs" />
-    <Compile Include="ViewModels\FusionWorkItem.cs" />
-    <Compile Include="ViewModels\KinectFrameWorkItem.cs" />
+    <Compile Include="Services\FormatHelper.cs" />
+    <Compile Include="Services\FusionManager.cs" />
+    <Compile Include="Services\FusionWorkItem.cs" />
+    <Compile Include="Services\KinectFrameWorkItem.cs" />
     <Compile Include="ViewModels\SkeletonJointViewModel.cs" />
     <Compile Include="Views\FaceTrackingView.xaml.cs">
       <DependentUpon>FaceTrackingView.xaml</DependentUpon>
     </Compile>
-    <Compile Include="Views\OldFaceTrackingViewer.xaml.cs">
-      <DependentUpon>OldFaceTrackingViewer.xaml</DependentUpon>
-    </Compile>
-    <Compile Include="SkeletonFaceTracker.cs" />
+    <Compile Include="Services\SkeletonFaceTracker.cs" />
     <Compile Include="ViewModels\MainViewModel.cs" />
     <Compile Include="Views\FusionControlView.xaml.cs">
       <DependentUpon>FusionControlView.xaml</DependentUpon>
@@ -144,14 +141,10 @@
     <Compile Include="Views\SkeletonJointView.xaml.cs">
       <DependentUpon>SkeletonJointView.xaml</DependentUpon>
     </Compile>
-    <Compile Include="VoiceCommand.cs" />
+    <Compile Include="Services\VoiceCommand.cs" />
     <Page Include="Views\FaceTrackingView.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
-    </Page>
-    <Page Include="Views\OldFaceTrackingViewer.xaml">
-      <Generator>MSBuild:Compile</Generator>
-      <SubType>Designer</SubType>
     </Page>
     <Page Include="MainWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
@@ -161,7 +154,7 @@
       <DependentUpon>App.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="Helpers.cs" />
+    <Compile Include="Services\Helpers.cs" />
     <Compile Include="MainWindow.xaml.cs">
       <DependentUpon>MainWindow.xaml</DependentUpon>
       <SubType>Code</SubType>
@@ -205,14 +198,6 @@
   </ItemGroup>
   <ItemGroup>
     <Resource Include="Images\Kinect.ico" />
-    <Resource Include="Images\Logo.png" />
-    <Resource Include="Images\Status.png" />
-    <Resource Include="Images\CheckedHover.png" />
-    <Resource Include="Images\CheckedNormal.png" />
-    <Resource Include="Images\UncheckedHover.png" />
-    <Resource Include="Images\UncheckedNormal.png" />
-    <Resource Include="Images\ResetHover.png" />
-    <Resource Include="Images\ResetNormal.png" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Microsoft.Kinect.Toolkit.FaceTracking\Microsoft.Kinect.Toolkit.FaceTracking.csproj">
@@ -229,13 +214,12 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
-    <Content Include="FaceTrackData.dll">
+    <Content Include="..\external\KinectToolkit\KinectFusion170_32.dll">
+      <Link>KinectFusion170_32.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Include="FaceTrackLib.dll">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="KinectFusion170_64.dll">
+    <Content Include="..\external\KinectToolkit\KinectFusion170_64.dll">
+      <Link>KinectFusion170_64.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

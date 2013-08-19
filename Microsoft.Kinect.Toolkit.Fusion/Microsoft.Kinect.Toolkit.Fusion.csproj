@@ -70,21 +70,21 @@
       <SubType>Designer</SubType>
     </EmbeddedResource>
   </ItemGroup>
+  <ItemGroup>
+    <Content Include="..\external\KinectToolkit\KinectFusion170_32.dll">
+      <Link>KinectFusion170_32.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\external\KinectToolkit\KinectFusion170_64.dll">
+      <Link>KinectFusion170_64.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
   <PropertyGroup Label="UserMacros">
     <KinectToolkitDllVersion>170</KinectToolkitDllVersion>
     <KinectFusionLib32>KinectFusion$(KinectToolkitDllVersion)_32</KinectFusionLib32>
     <KinectFusionLib64>KinectFusion$(KinectToolkitDllVersion)_64</KinectFusionLib64>
   </PropertyGroup>
-  <ItemGroup>
-    <Content Include="$(KINECT_TOOLKIT_DIR)Redist\x86\$(KinectFusionLib32).dll">
-      <Link>$(KinectFusionLib32).dll</Link>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="$(KINECT_TOOLKIT_DIR)Redist\amd64\$(KinectFusionLib64).dll">
-      <Link>$(KinectFusionLib64).dll</Link>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
